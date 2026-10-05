@@ -1,0 +1,8 @@
+Running task: hello-capstone
+Starting USB model server...
+Model ready at http://127.0.0.1:8080
+[hello-capstone step 1] write: Created hello.py with the required content.
+[hello-capstone step 2] shell: Ran hello.py to check the output.
+[hello-capstone step 3] finish: Verification successful. Task completed.
+Verified complete: hello-capstone
+All queued tasks verified complete.

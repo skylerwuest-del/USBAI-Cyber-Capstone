@@ -1,0 +1,4 @@
+GET /: 404 (built-in web UI disabled)
+GET /v1/models: 200, capstone model available
+POST /v1/chat/completions: 200, real CPU inference: Hello!
+Owned model process shut down cleanly.

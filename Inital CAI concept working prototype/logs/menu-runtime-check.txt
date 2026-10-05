@@ -1,0 +1,5 @@
+PASS: menu option 7 opens the editor, preserves a backup, and validates both tasks.
+PASS: editing is blocked while a run owns the session lock.
+PASS: an invalid task file is rejected before any model starts.
+PASS: option 8 completed both tasks with real CPU inference, stopped its model, released its port, and exited the menu.
+PASS: completed tasks are skipped on the next run, and the menu exits without starting a model.

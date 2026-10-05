@@ -1,0 +1,7 @@
+All project Python source parses as Python 3.10.
+Starting USB model server...
+Model ready at http://127.0.0.1:8080
+Starting USB model server...
+Model ready at http://127.0.0.1:8080
+Killed model process was restarted and returned healthy.
+Server shutdown released the listening port.

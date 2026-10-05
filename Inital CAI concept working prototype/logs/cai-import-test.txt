@@ -1,0 +1,3 @@
+CAI CLI imported successfully with USB-local model settings.
+
+Total CAI Session Cost: $0.000000

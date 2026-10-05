@@ -1,0 +1,2 @@
+Already completed: hello-capstone
+All queued tasks verified complete.

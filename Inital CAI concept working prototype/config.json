@@ -1,0 +1,23 @@
+{
+  "model": "models/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
+  "server": "runtime/llama-server",
+  "port": 8080,
+  "context_size": 8192,
+  "threads": 0,
+  "max_tokens": 1200,
+  "temperature": 0.15,
+  "request_timeout": 600,
+  "command_timeout": 120,
+  "startup_timeout": 180,
+  "retry_delay": 5,
+  "history_chars": 18000,
+  "output_chars": 4000,
+  "workdir": "workspace",
+  "server_args": [],
+  "cai": {
+    "agent": "one_tool_agent"
+  },
+  "chat_templates": {
+    "qwen2.5-coder-7b-instruct-q4_k_m.gguf": "templates/qwen2.5-coder.jinja"
+  }
+}

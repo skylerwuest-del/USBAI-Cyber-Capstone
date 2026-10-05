@@ -1,0 +1,29 @@
+
+CapStone — USB local AI
+Model: /run/media/charles/CapStone/models/qwen2.5-coder-7b-instruct-q4_k_m.gguf
+1) Start / resume task queue (choose a file)
+2) Serve model only
+3) Download & select model from Hugging Face URL
+4) Select an installed model
+5) Show task progress
+6) Start local model + CAI harness
+7) Edit preordained tasks (tasks.txt)
+8) Run preordained tasks, then close CapStone
+0) Exit
+Choose: Running tasks.txt. CapStone will close after every task is verified.
+Running task: txt-fe7687981a5f
+Starting USB model server...
+Model ready at http://127.0.0.1:49199
+[txt-fe7687981a5f step 1] write: Created first.txt with the content 'first
+'. Next step: Inspect the result.
+[txt-fe7687981a5f step 2] finish: File first.txt created successfully with the content 'first
+'. Proceeding with verification.
+Verified complete: txt-fe7687981a5f
+Running task: txt-e189958fbaf9
+[txt-e189958fbaf9 step 1] write: Created second.txt with the content 'second
+'. Next step: Inspect the result.
+[txt-e189958fbaf9 step 2] finish: second.txt created successfully with the content 'second
+'. Proceeding with verification.
+Verified complete: txt-e189958fbaf9
+All queued tasks verified complete.
+All tasks verified; the owned AI processes have stopped. Closing CapStone.
