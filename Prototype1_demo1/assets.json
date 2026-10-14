@@ -1,0 +1,21 @@
+{
+  "runtime": {
+    "version": "b11146",
+    "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11146/llama-b11146-bin-ubuntu-x64.tar.gz",
+    "sha256": "c150306eb16b5ab696f76a8bdf810c35fd98a24e82158742e6fa28f420ff8410",
+    "size": 16998357
+  },
+  "model": {
+    "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-Q4_K_M.gguf",
+    "sha256": "03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8",
+    "size": 5680522464,
+    "repository": "unsloth/Qwen3.5-9B-GGUF",
+    "revision": "3885219b6810b007914f3a7950a8d1b469d598a5",
+    "file": "Qwen3.5-9B-Q4_K_M.gguf"
+  },
+  "ubuntu_libraries": {
+    "file": "state/ubuntu-runtime-libs.tar.gz",
+    "size": 2336629,
+    "sha256": "1cc9e364da84f0aa576dd16939178f411bb7acba8131888d5fa684b8ba92cc50"
+  }
+}
