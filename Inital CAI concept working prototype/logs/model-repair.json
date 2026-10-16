@@ -1,8 +1,0 @@
-{
-  "model": "qwen2.5-coder-7b-instruct-q4_k_m.gguf",
-  "observed_bad_sha256": "4ff994e87203fd18eb5b246cfb19f69a348a0e9143b27c70d90c3d6eeb2e354a",
-  "repaired_sha256": "509287f78cb4d4cf6b3843734733b914b2c158e43e22a7f4bf5e963800894d3c",
-  "verified_again_after_fsync_and_page_cache_eviction": true,
-  "upstream_metadata_confirmed": true,
-  "kernel_observation": "exFAT reported the volume was not properly unmounted; the cause of the model corruption was not established"
-}

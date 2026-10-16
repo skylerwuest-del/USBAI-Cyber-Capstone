@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-exec bash "$ROOT/prototype2_llm_fit/linux.sh" "$@"
+exec bash "$ROOT/capstone/linux.sh" "$@"

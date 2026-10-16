@@ -1,8 +1,0 @@
-# Copy to tasks.txt and use: bash launch.sh --tasks tasks.txt
-# Separate tasks with a line containing ---.
-# Each task needs a VERIFY: line containing a shell completion check.
-Create a file named hello.py that prints exactly Hello from CapStone! and a newline.
-VERIFY: python3 -c "import subprocess; assert subprocess.check_output(['python3', 'hello.py'], text=True) == 'Hello from CapStone!\n'"
----
-Create notes.txt with a short description of this project and the word CapStone.
-VERIFY: python3 -c "from pathlib import Path; assert 'CapStone' in Path('notes.txt').read_text()"

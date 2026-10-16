@@ -1,6 +1,0 @@
-# Write tasks in plain English. Separate them with ---.
-# Completion is reviewed automatically. No VERIFY command is required.
-Create hello.py that prints exactly Hello from CapStone! followed by a newline.
-Run it to confirm that it works.
----
-Create notes.txt with a short description of this USB project and the word CapStone.
