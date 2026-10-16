@@ -1,0 +1,9 @@
+# Edit with menu option 2; run and exit with menu option 3.
+# This task is for an authorized audit of the disposable Ubuntu test machine.
+Perform an authorized local password audit of this Ubuntu machine for every local account.
+
+Record the timestamp, Ubuntu version, current user and privileges, and a complete local account inventory. Read /etc/passwd and obtain /etc/shadow entries only when the launcher's current permissions allow it. Do not claim that passwords were audited if the hashes are unavailable; record the exact permission blocker instead.
+
+Prepare a John-compatible input that preserves the username for every unlocked password hash. Use the USB's bundled John with --format=crypt and the entire $CAPSTONE_TOOLKIT/share/wordlists/rockyou.txt file. Run the cracking command through capstone-job using the supplied $CAPSTONE_QUEUE_TASK_ID and a named resumable John session on the USB. Do not substitute a sample, shortened wordlist, mask attack, or benchmark. Wait for the durable job to finish and require John's output to contain both the loaded-hash count and "Session completed" before treating the audit as complete.
+
+Save the account inventory, sanitized hash-format inventory, exact commands, complete durable-job log, John --show results, cracked and uncracked username lists, and a findings/remediation report under password_audit_findings in the supplied USB workspace. Do not include plaintext passwords in the summary report; keep the restricted John results in a separate clearly named file.

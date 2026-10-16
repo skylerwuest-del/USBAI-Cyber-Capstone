@@ -241,3 +241,30 @@ Prototype1_demo1/**/*.whl
 Prototype1_demo1/**/*.tar
 Prototype1_demo1/**/*.tar.gz
 Prototype1_demo1/**/*.zip
+
+# Track the offline allowlist, while retaining ignored model weights.
+!prototype2_llm_fit/models/
+prototype2_llm_fit/models/*
+!prototype2_llm_fit/models/models.json
+!prototype2_llm_fit/models/drop-in/
+prototype2_llm_fit/models/drop-in/*
+!prototype2_llm_fit/models/drop-in/README.txt
+prototype2_llm_fit/llmfit/linux/*/llmfit
+
+# Prototype 2 portable runtime and generated state
+prototype2_llm_fit/airllm/
+prototype2_llm_fit/hermes/
+prototype2_llm_fit/runtime/
+prototype2_llm_fit/toolkit/
+prototype2_llm_fit/logs/
+prototype2_llm_fit/state/
+prototype2_llm_fit/work/
+prototype2_llm_fit/workspace/
+prototype2_llm_fit/**/*.safetensors
+prototype2_llm_fit/**/*.gguf
+prototype2_llm_fit/**/*.bin
+prototype2_llm_fit/**/*.deb
+prototype2_llm_fit/**/*.whl
+prototype2_llm_fit/**/*.tar
+prototype2_llm_fit/**/*.tar.gz
+prototype2_llm_fit/**/*.zip

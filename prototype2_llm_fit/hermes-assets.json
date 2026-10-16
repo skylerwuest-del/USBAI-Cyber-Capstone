@@ -1,0 +1,14 @@
+{
+  "python": {
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260929/cpython-3.12.14%2B20260929-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+    "size": 34277962,
+    "sha256": "ef605200f8174e87ecfc308e52a88127543f85dd5c940dc5e92cab244b98a003"
+  },
+  "hermes": {
+    "version": "0.21.5",
+    "revision": "f97608f178d1ffeca59860195ab7da295f7c8e5f",
+    "url": "https://codeload.github.com/NousResearch/hermes-agent/tar.gz/f97608f178d1ffeca59860195ab7da295f7c8e5f",
+    "size": 75290311,
+    "sha256": "babbdb9706ad1c96708d75914afb45d809cd4b73dec1ceae233a6814f5ed97e3"
+  }
+}
