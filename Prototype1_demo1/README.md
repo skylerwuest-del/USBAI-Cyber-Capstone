@@ -1,13 +1,5 @@
 # CapStone USB — Hermes in the terminal
 
-This is the current application, including offline llmfit selection and model
-drop-folder integration. Update this folder in place; use Git history for previous versions.
-
-For normal offline startup, run `bash linux.sh` here or at the repository root.
-Drop models in `models/drop-in/`; startup updates the manifest automatically.
-See [offline setup and model selection](OFFLINE_MODELS.md) for preparation steps.
-The `launch.sh` instructions below describe the existing development menu.
-
 Start from the USB folder:
 
 ```bash
@@ -32,7 +24,7 @@ normal Unix executable bits.
 
 ## First setup and everyday launch
 
-From `capstone/`, run **one setup command**:
+From `Prototype1_demo1/`, run **one setup command**:
 
 ```bash
 bash setup.sh
@@ -44,6 +36,13 @@ are preserved; if models are already present, setup does not download model weig
 With no installed models, it prepares the pinned default model. Python handles downloads,
 so Snap curl is not required. Dependencies are installed inside this folder, without sudo
 or changing your system Python.
+
+Before downloading the default model, setup also checks `models/` beside the
+repository and beside the application folder on the same filesystem. A matching
+file is copied into the application's model folder and checked against the pinned
+SHA-256 in one pass. The source stays intact, and interrupted network downloads
+remain available for resuming. USB copying can still take time; watch progress in
+`logs/setup.log`.
 
 If the old Ubuntu-library archive is absent, setup collects the required libraries from
 the compatible host OS, verifies the server executes, and caches them with a separate

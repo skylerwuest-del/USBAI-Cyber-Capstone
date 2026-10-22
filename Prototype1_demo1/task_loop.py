@@ -213,8 +213,7 @@ class Sessions:
         if custom.is_file() and not review:
             request['system'] += '\nUSER INSTRUCTIONS:\n' + custom.read_text()
         atomic_json(folder / 'request.json', request)
-        from usb_core import HERMES
-        process = subprocess.Popen([str(HERMES / 'python' / 'bin' / 'python3.12'),
+        process = subprocess.Popen([str(ROOT / 'hermes' / 'python' / 'bin' / 'python3.12'),
                                     '-s', '-B', str(ROOT / 'agent_worker.py'),
                                     str(folder / 'request.json'), str(folder / 'result.json')],
                                    cwd=ROOT, start_new_session=True)

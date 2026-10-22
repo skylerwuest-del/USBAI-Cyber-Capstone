@@ -2,7 +2,6 @@
 import argparse
 import json
 import math
-import os
 import signal
 import subprocess
 import time
@@ -14,21 +13,12 @@ from task_loop import Sessions, load_tasks, run_queue
 def runtime_config(config, backend, model=None):
     config = dict(config, backend=backend)
     if backend != 'airllm':
-        strict = os.environ.get('CAPSTONE_STRICT_OFFLINE') == '1'
-        if strict:
-            from scripts.select_model import select
-            selection = select(ROOT, str(resolve(ROOT, model)) if model else None)
-            config.update(selection, _strict_offline=True, acceleration='cpu')
         if model:
             config['model'] = model
         checkpoint = resolve(ROOT, config['model'])
         from llm_fit import model_profile
         profile = model_profile(checkpoint, ROOT)
         config.update(profile)
-        # Profiles may supply tool settings, but must never enlarge the tested context.
-        if strict:
-            config.update({key: selection[key] for key in ('model', 'server', 'context_size', 'threads', 'n_gpu_layers')})
-            config.update(_strict_offline=True, acceleration='cpu')
         from gguf_metadata import context_length
         native = context_length(checkpoint)
         config['context_size'] = min(int(config['context_size']), native) if native else int(config['context_size'])
@@ -131,9 +121,8 @@ def main(argv=None):
     for folder in ('state', 'logs', 'workspace'):
         (ROOT / folder).mkdir(exist_ok=True)
     if args.check:
-        from usb_core import HERMES
-        for name in (config['server'], str(HERMES / 'python/bin/python3.12'),
-                     'hermes/src/run_agent.py', str(HERMES / 'site-packages/openai/__init__.py')):
+        for name in (config['server'], 'hermes/python/bin/python3.12',
+                     'hermes/src/run_agent.py', 'hermes/site-packages/openai/__init__.py'):
             if not resolve(ROOT, name).is_file():
                 raise RuntimeError('Missing ' + name + '; run bash setup.sh')
         model = resolve(ROOT, config['model'])

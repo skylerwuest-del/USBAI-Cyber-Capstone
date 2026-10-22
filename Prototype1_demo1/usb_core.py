@@ -37,11 +37,7 @@ from hardware_runtime import select_runtime, runtime_environment, acceleration_a
 
 ROOT = Path(__file__).resolve().parent
 activate(ROOT)
-from scripts.select_model import architecture
-HERMES = ROOT / 'hermes' / 'linux' / architecture()
-if not HERMES.is_dir():
-    HERMES = ROOT / 'hermes'
-sys.path.insert(0, str(HERMES / 'site-packages'))
+sys.path.insert(0, str(ROOT / 'hermes' / 'site-packages'))
 
 def now():
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -228,15 +224,6 @@ class Server:
                     '--context', str(cfg['context_size']), '--max-tokens', str(cfg['max_tokens']),
                     '--cache-gb', str(cfg.get('cache_gb', 8))]
         else:
-            if cfg.get('_strict_offline'):
-                # Preserve the strict offline entry's manifest and memory checks.
-                from scripts.select_model import select, safe_server_args
-                checked = select(ROOT, str(model))
-                if checked['context_size'] != cfg['context_size']:
-                    raise RuntimeError('Selected model context changed; restart the launcher')
-                server = Path(checked['server'])
-                selection = dict(server=str(server), gpu=False, backend='CPU')
-                safe_server_args(cfg['server_args'])
             args = [str(server), '--model', str(model), '--host', '127.0.0.1', '--port', str(cfg['port']), '--ctx-size', str(cfg['context_size']), '--threads', str(threads), '--parallel', '1', '--jinja', '--alias', 'capstone'] + chat_template_args(cfg) + cfg['server_args'] + acceleration_args(selection, cfg) + ['--no-webui']
             if 'batch_size' in cfg:
                 args.extend(['--batch-size', str(cfg['batch_size']), '--ubatch-size', str(cfg['ubatch_size'])])

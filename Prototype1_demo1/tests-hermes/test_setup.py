@@ -2,6 +2,7 @@
 import argparse
 import contextlib
 import io
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -38,6 +39,27 @@ class SetupTests(unittest.TestCase):
         before = config.read_bytes()
         prepare.check_settings_access(self.root)
         self.assertEqual(config.read_bytes(), before)
+
+    def test_reuses_verified_local_usb_model_and_preserves_source(self):
+        source = self.root / 'pool.gguf'
+        source.write_bytes(b'GGUFexisting')
+        destination = self.root / 'model.gguf'
+        partial = destination.with_name(destination.name + '.part')
+        partial.write_bytes(b'network resume bytes')
+        asset = dict(size=source.stat().st_size, sha256=hashlib.sha256(source.read_bytes()).hexdigest())
+        with patch.object(setup, 'download', side_effect=AssertionError('network forbidden')):
+            self.assertTrue(setup.reuse_local_model(asset, destination, [source]))
+        self.assertEqual(destination.read_bytes(), source.read_bytes())
+        self.assertEqual(partial.read_bytes(), b'network resume bytes')
+        self.assertFalse(destination.with_name(destination.name + '.local.part').exists())
+
+    def test_local_model_with_wrong_checksum_is_not_installed(self):
+        source = self.root / 'pool.gguf'
+        source.write_bytes(b'wrong model')
+        destination = self.root / 'model.gguf'
+        self.assertFalse(setup.reuse_local_model(dict(size=11, sha256='0' * 64), destination, [source]))
+        self.assertFalse(destination.exists())
+        self.assertEqual(source.read_bytes(), b'wrong model')
 
     def test_missing_legacy_library_archive_is_created_and_reused_offline(self):
         runtime = self.root / 'runtime'

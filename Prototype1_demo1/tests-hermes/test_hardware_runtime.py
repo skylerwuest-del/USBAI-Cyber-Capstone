@@ -66,21 +66,6 @@ class HardwareRuntimeTests(unittest.TestCase):
         self.assertFalse(selected['gpu'])
         probe.assert_not_called()
 
-    def test_strict_offline_entry_retains_manifest_context_and_cpu_policy(self):
-        import capstone
-        from scripts import select_model
-        selection = dict(model=str(self.root / 'model.gguf'), server='runtime/llama-server',
-                         context_size=4096, threads=2, n_gpu_layers=0)
-        with patch.dict(os.environ, {'CAPSTONE_STRICT_OFFLINE': '1'}), \
-             patch.object(select_model, 'select', return_value=selection) as select, \
-             patch('llm_fit.model_profile', return_value={'context_size': 16384, 'acceleration': 'auto'}), \
-             patch('gguf_metadata.context_length', return_value=8192):
-            config = capstone.runtime_config({}, 'llama.cpp')
-        self.assertEqual(config['context_size'], 4096)
-        self.assertEqual(config['acceleration'], 'cpu')
-        self.assertTrue(config['_strict_offline'])
-        select.assert_called_once()
-
     def test_automatic_threads_respect_affinity(self):
         with patch.object(os, 'sched_getaffinity', return_value={1, 2, 3}):
             self.assertEqual(runtime.cpu_threads(), 3)

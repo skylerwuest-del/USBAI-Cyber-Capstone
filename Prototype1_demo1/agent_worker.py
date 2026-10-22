@@ -7,18 +7,17 @@ import signal
 import sys
 
 ROOT = Path(__file__).resolve().parent
-from usb_core import HERMES
-sys.path[:0] = [str(HERMES / 'site-packages'), str(ROOT / 'hermes' / 'src')]
 from portable_env import activate
 activate(ROOT)
+sys.path[:0] = [str(ROOT / 'hermes' / 'site-packages'), str(ROOT / 'hermes' / 'src')]
 os.environ.update(HERMES_HOME=str(ROOT / 'state' / 'hermes'),
                   PYTHONNOUSERSITE='1', PYTHONDONTWRITEBYTECODE='1',
                   HERMES_YOLO_MODE='1', DO_NOT_TRACK='1',
                   HERMES_CONCURRENT_TOOL_TIMEOUT_S='0',
                   CAPSTONE_ROOT=str(ROOT))
-os.environ['PATH'] = os.pathsep.join((str(ROOT / 'toolkit/bin'), str(HERMES / 'python/bin'), os.environ.get('PATH', '')))
+os.environ['PATH'] = os.pathsep.join((str(ROOT / 'toolkit/bin'), str(ROOT / 'hermes/python/bin'), os.environ.get('PATH', '')))
 os.environ['CAPSTONE_TOOLKIT'] = str(ROOT / 'toolkit')
-os.environ.setdefault('SSL_CERT_FILE', str(HERMES / 'site-packages/certifi/cacert.pem'))
+os.environ.setdefault('SSL_CERT_FILE', str(ROOT / 'hermes/site-packages/certifi/cacert.pem'))
 for proxy_key in ('NO_PROXY', 'no_proxy'):
     os.environ[proxy_key] = os.environ.get(proxy_key, '') + ',127.0.0.1,localhost,::1'
 from usb_core import atomic_json

@@ -191,6 +191,49 @@ def ensure_asset(asset, path, offline=False):
         download(asset, path)
 
 
+def reuse_local_model(asset, destination, sources):
+    """Copy and verify an existing USB model without changing the source pool."""
+    if destination.exists():
+        return False  # Normal cache verification handles an installed destination.
+    for source in sources:
+        source = Path(source)
+        if (not source.is_file() or source.resolve() == destination.resolve()
+                or source.stat().st_size != asset['size']):
+            continue
+        if source.stat().st_dev != destination.parent.stat().st_dev:
+            continue  # Do not search another device for the user's model files.
+        if shutil.disk_usage(destination.parent).free < asset['size'] + 100 * 1024**2:
+            raise RuntimeError('Not enough free USB space to reuse the local model')
+        partial = destination.with_name(destination.name + '.local.part')
+        print('Reusing USB model: ' + str(source) + ' (copying and checking SHA-256; no download)', flush=True)
+        digest = hashlib.sha256()
+        copied = 0
+        report_at = time.monotonic() + 5
+        with source.open('rb') as src, partial.open('wb') as target:
+            for block in iter(lambda: src.read(4 * 1024**2), b''):
+                target.write(block)
+                digest.update(block)
+                copied += len(block)
+                if time.monotonic() >= report_at:
+                    print('Copied %.2f / %.2f GB from USB model pool' % (copied / 1e9, asset['size'] / 1e9), flush=True)
+                    report_at = time.monotonic() + 5
+            target.flush()
+            os.fsync(target.fileno())
+        if copied != asset['size'] or digest.hexdigest() != asset['sha256']:
+            partial.unlink()
+            print('Local model checksum differs from the pinned model; keeping the original file.', flush=True)
+            continue
+        os.replace(partial, destination)
+        directory_fd = os.open(destination.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+        print('Verified and installed existing USB model; source preserved.', flush=True)
+        return True
+    return False
+
+
 def prepare_runtime_libraries(asset, offline=False):
     """Reuse original archives or cache the compatible host's installed libraries."""
     record = ROOT / 'state/ubuntu-runtime-libs.local.json'
@@ -257,7 +300,12 @@ def main():
         extract_runtime(archive)
         prepare_gpu_runtimes(args.offline)
     if not args.runtime_only:
-        ensure_asset(manifest["model"], ROOT / "models" / manifest["model"]["file"], args.offline)
+        asset = manifest['model']
+        destination = ROOT / 'models' / asset['file']
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        sources = [parent / 'models' / asset['file'] for parent in (ROOT.parent, ROOT.parent.parent)]
+        if not reuse_local_model(asset, destination, sources):
+            ensure_asset(asset, destination, args.offline)
     if not args.model_only and manifest.get('ubuntu_libraries'):
         prepare_runtime_libraries(manifest['ubuntu_libraries'], args.offline)
     (ROOT / "licenses").mkdir(exist_ok=True)
