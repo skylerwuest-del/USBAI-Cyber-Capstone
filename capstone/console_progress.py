@@ -11,7 +11,7 @@ class StopRequested(BaseException):
 
 
 class ConsoleProgress:
-    def __init__(self, base_url, backend, root, interval=15, emit=None):
+    def __init__(self, base_url, backend, root, interval=5, emit=None):
         self.base = base_url.removesuffix('/v1')
         self.backend, self.root, self.interval = backend, Path(root), interval
         self.emit = emit or (lambda value: print(value, flush=True))
@@ -43,11 +43,19 @@ class ConsoleProgress:
         with self.client.open(self.base + '/slots', timeout=1) as response:
             slots = json.load(response)
         for slot in slots:
+            if not isinstance(slot, dict):
+                continue
             if slot.get('is_processing'):
+                next_token = slot.get('next_token') or {}
+                if isinstance(next_token, list):
+                    next_token = next_token[0] if next_token and isinstance(next_token[0], dict) else {}
+                decoded = next_token.get('n_decoded', 0) if isinstance(next_token, dict) else 0
+                if decoded:
+                    return 'generating response; ' + str(decoded) + ' tokens generated'
                 processed = slot.get('n_prompt_tokens_processed')
-                if processed is not None:
+                if processed:
                     return str(processed) + ' prompt tokens processed'
-                return 'model server is processing the request'
+                return 'evaluating first prompt batch; counter updates when the batch completes'
         return ''
 
     def _run(self):

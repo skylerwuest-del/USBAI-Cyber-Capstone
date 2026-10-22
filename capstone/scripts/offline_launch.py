@@ -20,6 +20,7 @@ for key in list(os.environ):
     if key.lower().endswith('_proxy'):
         del os.environ[key]
 args = sys.argv[1:] or ['--chat']
+os.environ['CAPSTONE_STRICT_OFFLINE'] = '1'
 if '--backend=airllm' in args or '--backend' in args and 'airllm' in args:
     raise SystemExit('Offline entry supports the existing llama.cpp + Hermes backend only.')
 os.chdir(root)

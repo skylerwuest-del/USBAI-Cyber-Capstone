@@ -29,7 +29,11 @@ def edit(name):
             print('Saved ' + str(len(tasks)) + ' task(s). VERIFY lines are optional.')
 
 
-def run(*args):
+def run(*args, active_model=None):
+    if active_model and '--backend' not in args:
+        args = (*args, '--model', str(active_model))
+        if '--chat' in args:
+            args = (*args, '--fit-session')
     process = subprocess.Popen([sys.executable, '-s', '-B', str(ROOT / 'capstone.py'), *args], cwd=ROOT, start_new_session=True)
     try:
         return process.wait()
@@ -50,8 +54,10 @@ def run(*args):
             signal.signal(signal.SIGINT, previous)
 
 
-def main():
+def main(active_model=None):
     while True:
+        if active_model:
+            print('\nSession GGUF: ' + str(active_model))
         print('''
 CapStone — local Hermes, terminal only
 1) Start interactive Hermes (model + terminal/file tools)
@@ -64,17 +70,18 @@ CapStone — local Hermes, terminal only
 8) Serve the local model only
 9) AirLLM + Hermes (interactive tools or autonomous tasks)
 10) USB toolkit (tools, local self-test, offline repair)
+11) Test installed GGUF models (optional performance benchmark)
 0) Exit''')
         try:
             choice = input('Choose: ').strip()
             if choice == '0':
                 return 0
             if choice == '1':
-                run('--chat')
+                run('--chat', active_model=active_model)
             elif choice == '2':
                 edit('tasks.txt')
             elif choice == '3':
-                code = run('--run', '--tasks', 'tasks.txt')
+                code = run('--run', '--tasks', 'tasks.txt', active_model=active_model)
                 if code == 0:
                     return 0
                 print('Run interrupted or failed; progress retained. Exit code: ' + str(code))
@@ -82,11 +89,16 @@ CapStone — local Hermes, terminal only
                 run('--status')
             elif choice in ('5', '6'):
                 from models_menu import pull, choose_installed
-                (pull if choice == '5' else choose_installed)()
+                selected = (pull if choice == '5' else choose_installed)()
+                if selected is not None:
+                    active_model = str(selected)
             elif choice == '7':
                 edit('prompt.txt')
             elif choice == '8':
-                run('--serve-only')
+                run('--serve-only', active_model=active_model)
+            elif choice == '11':
+                from fit_benchmark import run_benchmarks
+                run_benchmarks()
             elif choice == '10':
                 from toolkit_tools import menu as toolkit_menu
                 toolkit_menu()

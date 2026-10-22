@@ -26,6 +26,47 @@
       "file",
       "todo"
     ],
-    "model_label": "Qwen3.5 9B Q4_K_M"
+    "model_label": "Qwen3.5 9B Q4_K_M",
+    "llm_fit": {
+      "kv_bytes_per_token": 1048576,
+      "extra_overhead_bytes": 536870912,
+      "memory_evidence": "Conservative estimate for hybrid qwen35: 1 MiB/token exceeds full attention on all 32 layers (131072 bytes/token from GGUF 4 KV heads, 256 K/V dimensions, f16); additional 512 MiB allowance for recurrent state/graphs. Not measured peak RSS.",
+      "tool_calling": "experimental",
+      "capability_evidence": "User test 2026-10-20: Qwen3.5 9B invoked real Hermes terminal tool, wrote a desktop text file and returned exit_code 0. Evidence for this simple file task only; not general tool reliability."
+    }
+  },
+  "models/drop-in/qwen2.5-0.5b-instruct-q4_k_m.gguf": {
+    "context_size": 8192,
+    "max_tokens": 1024,
+    "chat_max_tokens": 256,
+    "toolsets": [
+      "terminal"
+    ],
+    "model_label": "Qwen2.5 0.5B (fast smoke test)"
+  },
+  "models/drop-in/smollm2-360m-instruct-q8_0.gguf": {
+    "context_size": 8192,
+    "max_tokens": 1024,
+    "chat_max_tokens": 256,
+    "toolsets": [
+      "terminal"
+    ],
+    "model_label": "SmolLM2 360M (fast smoke test)"
+  },
+  "models/drop-in/qwen2.5-coder-7b-instruct-q4_k_m.gguf": {
+    "context_size": 16384,
+    "max_tokens": 4096,
+    "chat_max_tokens": 512,
+    "chat_toolsets": [
+      "terminal"
+    ],
+    "model_label": "Qwen2.5 Coder 7B Q4_K_M",
+    "chat_templates": {
+      "qwen2.5-coder-7b-instruct-q4_k_m.gguf": "templates/qwen2.5-coder.jinja"
+    },
+    "llm_fit": {
+      "tool_calling": "unknown",
+      "capability_note": "User test 2026-10-20 emitted write_file JSON as text without executing it. Local Qwen tool-call template is now explicit; behavior requires reevaluation."
+    }
   }
 }

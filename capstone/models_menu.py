@@ -54,6 +54,32 @@ def select(items, title):
     return index
 
 
+def find_gguf_repositories(repo):
+    """Find conversion candidates; the user explicitly chooses the publisher."""
+    owner, name = repo.split("/", 1)
+    query = urllib.parse.urlencode({"search": name, "filter": "gguf",
+                                    "sort": "downloads", "direction": -1, "limit": 50})
+    endpoint = "https://huggingface.co/api/models?" + query
+    with urllib.request.urlopen(endpoint, context=tls_context(), timeout=30) as response:
+        results = json.load(response)
+    # Exclude similarly named larger models and fine-tunes. Search results are
+    # candidates, not proof of provenance or runtime/tool compatibility.
+    candidates = []
+    for item in results:
+        identifier = item.get("id", "")
+        try:
+            candidate, _, _ = parse_url("https://huggingface.co/" + identifier)
+        except ValueError:
+            continue
+        if identifier != candidate:
+            continue
+        model_name = candidate.split("/", 1)[1].lower()
+        if model_name in (name.lower(), name.lower() + "-gguf", name.lower() + "_gguf"):
+            candidates.append(candidate)
+    return sorted(set(candidates), key=lambda value: (value.split("/")[0] != owner,
+                                                      candidates.index(value)))
+
+
 def shard_group(filename, files):
     match = SPLIT.fullmatch(filename)
     if not match:
@@ -85,17 +111,34 @@ def set_model(path):
     print("Selected model: " + cfg["model"])
 
 
-def pull(url=None):
+def pull(url=None, *, discover=True):
     url = url or input("Hugging Face repository or GGUF URL: ").strip()
     repo, revision, filename = parse_url(url)
     print("Looking up public GGUF files in " + repo + "...", flush=True)
     info = metadata(repo, revision)
     files = {f["rfilename"]: f for f in info["siblings"] if f["rfilename"].lower().endswith(".gguf")}
     if not files:
-        raise ValueError("No GGUF files found. Choose a GGUF quantization repository.")
+        if filename:
+            raise ValueError("GGUF file not found at this repository revision")
+        if not discover:
+            raise ValueError("The selected conversion repository has no GGUF files. Try another publisher.")
+        print("This repository has no GGUF files. This download option needs a GGUF conversion.")
+        print("Searching for matching GGUF repositories...", flush=True)
+        candidates = find_gguf_repositories(repo)
+        if not candidates:
+            raise ValueError("No matching GGUF repositories found. Paste a GGUF repository or file URL instead.")
+        print("Check the publisher/model card before choosing; conversions may be community uploads.")
+        choice = select(candidates, "GGUF conversion candidates for " + repo)
+        if choice is None:
+            return
+        return pull("https://huggingface.co/" + candidates[choice], discover=False)
     if not filename:
         names = selectable_names(files)
-        labels = [name + " (" + format(files[name].get("size", 0) / 1e9, ".2f") + " GB; first shard if split)" for name in names]
+        labels = []
+        for name in names:
+            group = shard_group(name, files)
+            size = sum(files[part].get("size", 0) for part in group)
+            labels.append(name + " (" + format(size / 1e9, ".2f") + " GB total; " + str(len(group)) + " file(s))")
         choice = select(labels, "Available GGUF models")
         if choice is None:
             return
@@ -130,6 +173,7 @@ def pull(url=None):
         atomic_json(dest / "source.json", {"repository": repo, "revision": pinned, "files": receipts})
         set_model(dest / group[0])
     print("Model downloaded and selected. Its license is on the Hugging Face repository page.")
+    return dest / group[0]
 
 
 def choose_installed():
@@ -144,3 +188,4 @@ def choose_installed():
         shard_group(names[choice], relative)
         with instance_lock(ROOT / "state" / "runner.lock"):
             set_model(relative[names[choice]])
+        return relative[names[choice]]

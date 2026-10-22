@@ -245,3 +245,33 @@ capstone/**/*.whl
 capstone/**/*.tar
 capstone/**/*.tar.gz
 capstone/**/*.zip
+
+# CapStone task runtime and local output
+capstone/logs/
+capstone/state/
+capstone/work/
+capstone/workspace/
+
+# Downloaded model and package artifacts
+capstone/**/*.safetensors
+capstone/**/*.gguf
+capstone/**/*.bin
+capstone/**/*.deb
+capstone/**/*.whl
+capstone/**/*.tar
+capstone/**/*.tar.gz
+capstone/**/*.zip
+
+# LLM Fit runtime diagnostics (append-only, local to USB)
+capstone/logs/llm-fit-diagnostics.txt
+capstone/logs/llm-fit-diagnostics.txt.*
+# LLM Fit generated test artifacts; permanent tests stay versionable
+capstone/tests-hermes/.llm-fit-artifacts/
+capstone/tests-hermes/llm-fit-test-output.*
+
+# LLM Fit local measured-performance cache
+capstone/state/llm-fit-performance.json
+capstone/state/llm-fit-performance.lock
+
+# Preserved local artifacts from the pre-consolidation application directory
+Prototype1_demo1/

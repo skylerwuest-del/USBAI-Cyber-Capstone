@@ -1,6 +1,5 @@
 """Repair/reinstall the pinned Hermes bundle using USB archives and binary wheels."""
 import argparse
-import inspect
 import json
 import os
 from pathlib import Path
@@ -9,8 +8,11 @@ import subprocess
 import tarfile
 import tempfile
 
+from portable_env import activate
+
 from usb_core import ROOT, atomic_json, instance_lock
 from setup import download, sha256
+activate(ROOT)
 
 BUNDLE = ROOT / 'hermes'
 PYTHON = BUNDLE / 'python' / 'bin' / 'python3.12'
@@ -30,8 +32,32 @@ def extract(archive, destination, source=False):
                     link = (target.parent / member.linkname).resolve() if member.issym() else (base / member.linkname).resolve()
                     if not link.is_relative_to(base):
                         raise ValueError('Archive link escapes extraction directory')
-            kwargs = {'filter': 'data'} if 'filter' in inspect.signature(tar.extractall).parameters else {}
-            tar.extractall(base, **kwargs)
+            # Scratch is on USB too: exFAT cannot create the archive's symlinks.
+            # Materialize linked files using tar's link resolver instead.
+            links = []
+            for member in tar.getmembers():
+                target = base / member.name
+                if member.isdir():
+                    target.mkdir(parents=True, exist_ok=True)
+                elif member.isfile() or member.issym() or member.islnk():
+                    if member.issym() or member.islnk():
+                        links.append(member)
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with tar.extractfile(member) as src, target.open('wb') as out:
+                        shutil.copyfileobj(src, out)
+                    target.chmod(member.mode & 0o777)
+            for member in links:
+                target = base / member.name
+                linked = ((target.parent / member.linkname) if member.issym()
+                          else (base / member.linkname)).resolve()
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if linked.is_dir():
+                    shutil.copytree(linked, target, dirs_exist_ok=True)
+                else:
+                    with tar.extractfile(member) as src, target.open('wb') as out:
+                        shutil.copyfileobj(src, out)
+                    target.chmod(linked.stat().st_mode & 0o777 if linked.exists() else 0o755)
         roots = list(base.iterdir())
         if len(roots) != 1 or not roots[0].is_dir():
             raise ValueError('Expected a single archive root')
@@ -68,6 +94,14 @@ def main():
                    HERMES_HOME=str(ROOT / 'state' / 'hermes'))
         env.pop('PYTHONHOME', None)
         env.pop('PYTHONPATH', None)
+        if not args.offline:
+            # First preparation must populate the exact wheel cache used by offline repair.
+            wheels = BUNDLE / 'wheels'
+            wheels.mkdir(parents=True, exist_ok=True)
+            subprocess.run([str(PYTHON), '-m', 'pip', 'download', '--disable-pip-version-check',
+                            '--index-url', 'https://pypi.org/simple', '--only-binary=:all:',
+                            '--require-hashes', '--no-deps', '--dest', str(wheels),
+                            '-r', str(ROOT / 'hermes-requirements.lock')], env=env, check=True)
         subprocess.run([str(PYTHON), '-m', 'pip', 'install', '--no-index', '--no-cache-dir',
                         '--find-links', str(BUNDLE / 'wheels'), '--require-hashes', '--no-deps',
                         '--no-compile', '--target', str(pending), '-r', str(ROOT / 'hermes-requirements.lock')],

@@ -13,7 +13,10 @@ import tarfile
 import time
 import urllib.request
 
+from portable_env import activate
+
 ROOT = Path(__file__).resolve().parent
+activate(ROOT)
 
 
 def tls_context():
@@ -87,12 +90,7 @@ def download(asset, path):
     if partial.exists() and partial.stat().st_size > asset["size"]:
         raise RuntimeError("Oversized partial file: " + str(partial))
     if not partial.exists() or partial.stat().st_size != asset["size"]:
-        if not shutil.which('curl'):
-            python_download(asset, partial)
-        else:
-            subprocess.run(["curl", "--fail", "--location", "--retry", "8", "--retry-delay", "3",
-                        "--connect-timeout", "20", "--speed-time", "60", "--speed-limit", "1024",
-                            "--continue-at", "-", "--output", str(partial), asset["url"]], check=True)
+        python_download(asset, partial)
     # Flush the downloaded bytes before accepting a cached checksum as success.
     # USB removal after setup must not leave a verified file only in page cache.
     with partial.open("rb") as handle:
@@ -108,14 +106,14 @@ def download(asset, path):
         os.close(directory_fd)
 
 
-def extract_runtime(archive):
+def extract_runtime(archive, destination=None, libraries_only=False):
     # exFAT does not support symbolic links. Materialize linked shared libraries as files.
     with tarfile.open(archive, "r:gz") as tar:
         members = {m.name: m for m in tar.getmembers()}
         servers = [m for m in members.values() if PurePosixPath(m.name).name == "llama-server" and m.isfile()]
-        if len(servers) != 1:
+        if not libraries_only and len(servers) != 1:
             raise RuntimeError("Expected exactly one llama-server in runtime archive")
-        directory = PurePosixPath(servers[0].name).parent
+        directory = PurePosixPath(servers[0].name).parent if servers else None
         def file_content(member, visited=None):
             visited = set() if visited is None else visited
             if member.name in visited:
@@ -141,12 +139,12 @@ def extract_runtime(archive):
             if not member.isfile():
                 raise RuntimeError("Unexpected runtime member type")
             return tar.extractfile(member)
-        runtime = ROOT / "runtime"
-        runtime.mkdir(exist_ok=True)
+        runtime = Path(destination) if destination else ROOT / "runtime"
+        runtime.mkdir(parents=True, exist_ok=True)
         count = 0
         for member in members.values():
             p = PurePosixPath(member.name)
-            if p.parent != directory or not (p.name == "llama-server" or ".so" in p.name):
+            if (not libraries_only and p.parent != directory) or not (p.name == "llama-server" or ".so" in p.name):
                 continue
             dest = runtime / p.name
             with file_content(member) as src, dest.open("wb") as out:
@@ -154,6 +152,17 @@ def extract_runtime(archive):
             dest.chmod(0o755)
             count += 1
         print("Installed " + str(count) + " runtime files (exFAT compatible)", flush=True)
+
+
+def prepare_gpu_runtimes(offline=False):
+    """All downloads, runtime libraries and extraction stay on the USB."""
+    assets = json.loads((ROOT / 'gpu-assets.json').read_text())
+    for backend, entries in assets.items():
+        destination = ROOT / 'runtime' / backend
+        for index, asset in enumerate(entries):
+            archive = ROOT / 'state' / 'gpu-archives' / asset['file']
+            ensure_asset(asset, archive, offline)
+            extract_runtime(archive, destination=destination, libraries_only=index > 0)
 
 
 def restore_ubuntu_libraries(asset):
@@ -164,7 +173,7 @@ def restore_ubuntu_libraries(asset):
     runtime.mkdir(exist_ok=True)
     with tarfile.open(archive, 'r:gz') as tar:
         for member in tar.getmembers():
-            if not member.isfile() or Path(member.name).name != member.name or not member.name.startswith(('libgomp.so', 'libstdc++.so', 'libgcc_s.so')):
+            if not member.isfile() or Path(member.name).name != member.name or not member.name.startswith(('libgomp.so', 'libstdc++.so', 'libgcc_s.so', 'libssl.so', 'libcrypto.so')):
                 raise ValueError('Unexpected file in Ubuntu runtime archive')
             dest = runtime / member.name
             with tar.extractfile(member) as source, dest.open('wb') as target:
@@ -174,27 +183,83 @@ def restore_ubuntu_libraries(asset):
     print('Ubuntu runtime libraries restored from verified USB archive.', flush=True)
 
 
+def ensure_asset(asset, path, offline=False):
+    if offline:
+        if not path.is_file() or path.stat().st_size != asset['size'] or sha256(path) != asset['sha256']:
+            raise RuntimeError('Offline asset missing or corrupt: ' + str(path) + '; run bash setup.sh online first')
+    else:
+        download(asset, path)
+
+
+def prepare_runtime_libraries(asset, offline=False):
+    """Reuse original archives or cache the compatible host's installed libraries."""
+    record = ROOT / 'state/ubuntu-runtime-libs.local.json'
+    candidates = [asset]
+    if record.exists():
+        candidates.insert(0, json.loads(record.read_text()))
+    for candidate in candidates:
+        archive = ROOT / candidate['file']
+        if archive.is_file() and archive.stat().st_size == candidate['size'] and sha256(archive) == candidate['sha256']:
+            restore_ubuntu_libraries(candidate)
+            return
+    if offline:
+        raise RuntimeError('Runtime library cache missing or corrupt; run bash setup.sh online first')
+    runtime = ROOT / 'runtime'
+    env = dict(os.environ, LD_LIBRARY_PATH=str(runtime))
+    inspection = subprocess.run(['ldd', str(runtime / 'llama-server')], env=env,
+                                capture_output=True, text=True, check=True)
+    if 'not found' in inspection.stdout:
+        raise RuntimeError('Host cannot supply required runtime libraries: ' + inspection.stdout.strip())
+    required = {'libgomp.so.1', 'libstdc++.so.6', 'libgcc_s.so.1', 'libssl.so.3', 'libcrypto.so.3'}
+    libraries = {}
+    for line in inspection.stdout.splitlines():
+        fields = line.split()
+        if len(fields) >= 3 and fields[0] in required and fields[1] == '=>':
+            source = Path(fields[2]).resolve()
+            if not source.is_file():
+                raise RuntimeError('Runtime library not a regular file: ' + str(source))
+            libraries[fields[0]] = source
+    if not {'libstdc++.so.6', 'libgcc_s.so.1'}.issubset(libraries):
+        raise RuntimeError('Could not identify the required host C++ runtime libraries')
+    # Only cache a host bundle which can actually execute this verified server.
+    subprocess.run([str(runtime / 'llama-server'), '--version'], env=env,
+                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True, timeout=30)
+    archive = ROOT / 'state/ubuntu-runtime-libs.tar.gz'
+    partial = archive.with_suffix('.gz.part')
+    with tarfile.open(partial, 'w:gz') as tar:
+        for name, source in sorted(libraries.items()):
+            tar.add(source, arcname=name, recursive=False)
+    os.replace(partial, archive)
+    from usb_core import atomic_json
+    generated = dict(file='state/ubuntu-runtime-libs.tar.gz', size=archive.stat().st_size,
+                     sha256=sha256(archive), provenance='Libraries supplied by this host OS; not the legacy archive',
+                     host=platform.platform(), libraries={name: dict(source=str(path), sha256=sha256(path))
+                                                           for name, path in libraries.items()})
+    atomic_json(record, generated)
+    restore_ubuntu_libraries(generated)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime-only", action="store_true")
     parser.add_argument("--model-only", action="store_true")
+    parser.add_argument('--offline', action='store_true')
     args = parser.parse_args()
     if args.runtime_only and args.model_only:
         parser.error("Choose only one of --runtime-only and --model-only")
     if platform.machine() not in ("x86_64", "AMD64"):
         raise RuntimeError("This runtime targets x86_64 Ubuntu; other architectures need a matching runtime")
-    if shutil.which("curl") is None:
-        raise RuntimeError("curl is required. On Ubuntu run: sudo apt install curl")
     manifest = json.loads((ROOT / "assets.json").read_text())
     (ROOT / "state").mkdir(exist_ok=True)
     if not args.model_only:
         archive = ROOT / "state" / "llama-ubuntu-x64.tar.gz"
-        download(manifest["runtime"], archive)
+        ensure_asset(manifest["runtime"], archive, args.offline)
         extract_runtime(archive)
+        prepare_gpu_runtimes(args.offline)
     if not args.runtime_only:
-        download(manifest["model"], ROOT / "models" / manifest["model"]["file"])
-    if manifest.get('ubuntu_libraries'):
-        restore_ubuntu_libraries(manifest['ubuntu_libraries'])
+        ensure_asset(manifest["model"], ROOT / "models" / manifest["model"]["file"], args.offline)
+    if not args.model_only and manifest.get('ubuntu_libraries'):
+        prepare_runtime_libraries(manifest['ubuntu_libraries'], args.offline)
     (ROOT / "licenses").mkdir(exist_ok=True)
     sources = {
         "llama.cpp-LICENSE": "https://raw.githubusercontent.com/ggml-org/llama.cpp/" + manifest["runtime"]["version"] + "/LICENSE",
@@ -202,11 +267,10 @@ def main():
     }
     for name, url in sources.items():
         if not (ROOT / "licenses" / name).exists():
-            if shutil.which('curl'):
-                subprocess.run(["curl", "-fL", "--retry", "3", "-o", str(ROOT / "licenses" / name), url], check=True)
-            else:
-                with urllib.request.urlopen(url, context=tls_context(), timeout=60) as response:
-                    (ROOT / 'licenses' / name).write_bytes(response.read())
+            if args.offline:
+                raise RuntimeError('Missing offline license file: ' + name)
+            with urllib.request.urlopen(url, context=tls_context(), timeout=60) as response:
+                (ROOT / 'licenses' / name).write_bytes(response.read())
     print("Setup complete. Start with: bash launch.sh", flush=True)
 
 

@@ -14,6 +14,8 @@ import urllib.parse
 import urllib.request
 
 ROOT = Path(__file__).resolve().parent
+from portable_env import activate
+activate(ROOT)
 AIR = ROOT / 'airllm'
 os.environ.setdefault('SSL_CERT_FILE', str(ROOT / 'hermes/site-packages/certifi/cacert.pem'))
 

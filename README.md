@@ -11,3 +11,14 @@ Model weights and generated runtimes are ignored by Git. Push/pull transfers the
 code and manifest; copy model files separately into
 `capstone/models/drop-in/` on the USB/SD card. Ignored files are not recoverable
 from Git history.
+
+For the GPU-enabled model menu and Hugging Face downloads:
+
+```bash
+bash capstone/setup.sh
+bash capstone/launch.sh
+```
+
+Setup downloads and application caches stay under `capstone/` on the USB.
+The strict offline entry remains `bash linux.sh`; it retains CPU-only manifest selection.
+See [application instructions](capstone/README.md) for details.
