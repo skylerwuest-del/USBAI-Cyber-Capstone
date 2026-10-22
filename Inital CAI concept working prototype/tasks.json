@@ -1,7 +1,0 @@
-[
-  {
-    "id": "hello-capstone",
-    "prompt": "Create hello.py in the workspace. When run with python3 it must print exactly Hello from CapStone! followed by a newline. Run it to check your work, then finish.",
-    "verify": "python3 -c \"import subprocess; assert subprocess.check_output(['python3', 'hello.py'], text=True) == 'Hello from CapStone!\\n'\""
-  }
-]

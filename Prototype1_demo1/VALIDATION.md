@@ -1,3 +1,152 @@
+# Startup menu and first-prompt revision — 2026-10-20
+
+Startup now contains only model choices 1–3 and exit. Each successful choice opens the
+original application menu without starting a server or chat. That menu's chat/queue/serve
+actions receive the selected session-only GGUF model; choosing a saved model explicitly
+replaces the override. Original options 1–10 remain and optional benchmarking is now 11.
+AirLLM commands do not inherit a GGUF override. Saved `config.json` and model weights
+are unchanged. Chat still uses the existing real Server/Sessions lifecycle and telemetry.
+
+Interactive GGUF prompts now advertise terminal/process tools directly with concise
+app-owned descriptions and disable SDK tool-discovery bridge overhead. Actual function
+names, argument schemas, required fields and constraints are retained, with no vendored
+SDK edits. Queue/review tool definitions and AirLLM remain as before. Existing tiny-model
+profiles also apply to flat drop-in copies, and Coder 7B has the bundled Qwen tool template.
+Qwen 9B has narrow experimental suitability evidence from the user's successful file task;
+this is not a general tool-reliability certification.
+
+Logical batches and physical microbatches are both 512, reducing counter granularity
+from the old 2048-token logical default while retaining the original 512 microbatch size.
+Progress polls every five seconds, describes first-batch evaluation instead of showing a
+misleading zero, and handles the installed runtime's list-shaped `next_token` field.
+It distinguishes prompt counts from generation counts. Old performance measurements are
+not reused under the new prompt/batch identity. CPU evaluation is still real computation;
+menu changes alone do not make a weak model correctly execute tool calls.
+
+Bundled-Python regression suite: **129 tests, 128 passed**, one existing AirLLM test
+fails because optional PyTorch is absent. Tests cover selected-model propagation, chat
+return behavior, explicit saved-model switching, AirLLM isolation, preserved JSON schemas,
+small batch settings, honest zero/batch progress, and dict/list generation counters.
+The current user's active chat was left running; real integration checks use a temporary
+source copy and separate loopback port, shared weights opened for inference, and a harmless `/tmp`
+file task. No user desktop file or task queue was changed.
+
+The final real Qwen 9B test created and read back a temporary text file via real
+Hermes terminal calls, returned to the original menu, then to startup, and exited.
+First prompt evaluation measured **1247 tokens in 42.99 seconds**,
+compared with the prior user log of 3653 tokens in 94.82 seconds. These are
+different file-task prompts, not a controlled benchmark; the first-prompt workload
+is substantially smaller. The console showed the first completed 512-token count
+at 19 seconds. The full two-tool creation/readback conversation took 78.03 seconds.
+No progress-thread exception occurred in the final test. CPU response time remains
+material; no instant-response guarantee is made. Measured details append to the
+primary diagnostics text file under MENU FLOW AND REAL TOOL VALIDATION.
+
+---
+
+# Unified setup validation — 2026-10-20
+
+`bash setup.sh` now performs online preparation; `bash setup.sh --offline` repairs
+from verified caches. Real online preparation and a subsequent offline repair both passed
+on this Ubuntu 24.04 x86_64/glibc 2.39 host. No sudo or system Python installation was used.
+Existing installed GGUF files were retained. The pinned Python/Hermes archives and 63
+hash-verified Python wheel packages are cached locally. The absent legacy Ubuntu-library
+archive was replaced by a separately documented host-library cache with its own SHA-256
+manifest, rather than bypassing verification of the original asset.
+
+The real llama.cpp server loaded an installed SmolLM2 model, passed readiness and model
+identity checks, and the real Hermes SDK reached `You>`. The setup smoke check then quit.
+A separate `launch.sh --model ... --chat` check sent a fixed harmless greeting, received a
+real `Hermes>` reply, and exited cleanly. No autonomous tasks or password audits ran.
+The setup receipt is `state/setup-ready.json`; detailed preparation output is in
+`logs/setup.log`, and structured checks append to `logs/llm-fit-diagnostics.txt`.
+The runtime's timestamped request timings were used to add a sampler-format regression
+check, including use of the server-reported decode speed.
+
+Automatic menu option 1 was also exercised through the actual `launch.sh`: it selected
+Qwen2.5 Coder 7B, loaded it, reached the real Hermes prompt in 8.6 seconds, then returned
+to the startup menu and exited. Final bundled-Python suite: **120 tests, 119 passed, one
+failed** because the separate existing AirLLM cache test requires uninstalled PyTorch.
+All eight setup tests and the real-runtime timing-format regression test passed.
+
+Eight setup tests cover library cache creation/offline reuse, archive safety, missing/corrupt
+offline assets, installed-model preservation, the unified command sequence, readiness only
+after successful verification, and pinned wheel downloads before offline installation.
+Earlier missing-runtime statements below describe the pre-setup state and are historical.
+AirLLM/PyTorch and the optional toolkit were not installed or altered by this GGUF setup.
+Compatibility of the host-generated library cache with other OS releases is not implied.
+
+---
+
+# Passive performance tracking and explicit benchmark validation — 2026-10-20
+
+Added numeric-only passive timing collection for interactive startup selections, same-host
+measurement reuse as a bounded ranking adjustment, and explicit startup option 5 /
+`bash launch.sh --benchmark-installed`. The original RAM/context/runtime gates run before
+history is considered. Default and manual selection still bypass ranking. No benchmark
+runs at normal startup, and no model weights or AirLLM components are changed.
+
+Latest combined suite: **111 tests, 110 passed, one failed** (the existing AirLLM
+cache test requires absent PyTorch). All 27 new performance tests and all 42 fit tests
+passed. A startup/session fixture verifies that loader/warmup timing lines are excluded
+and only later request timings are reused. Actual shell menu, `--status`, and explicit
+benchmark missing-runtime behavior were checked; syntax and ignore-rule checks passed.
+
+New synthetic tests cover signature invalidation (hardware/model/runtime/context/threads),
+fresh available-RAM rejection despite favorable history, minimum sample thresholds,
+expiry, bounded scoring/cache size, preserved capability scoring, failure penalties,
+corrupt/unwritable cache handling, passive numeric log parsing, no raw text retention,
+partial lines, no double counting, explicit benchmark dispatch, identical harmless
+requests, response timings, cleanup, and RAM-pressure skip behavior.
+
+The local runtime/SDK/PyTorch limitations described below still apply. All performance
+values in unit tests are synthetic fixtures; no real-model speed or reliability has been
+measured or claimed. Full test outcomes append to the primary diagnostics text file.
+
+---
+
+# Offline LLM Fit Phase 1 validation — 2026-10-20
+
+This section describes checks on this downloaded folder. The older validation notes below
+are historical and do not establish the presence of a working runtime in this copy.
+
+Implemented startup selection uses the existing Server, Sessions and cleanup paths.
+Unit tests cover RAM pressure/reserves, CPU/runtime ABI, GPU presence vs support, bounded
+GGUF parsing/discovery, native context, profile evidence, deterministic scoring, session-only
+overrides, no confirmation, default/manual paths, bounded fallback, readiness/model identity,
+diagnostic appends, offline scan behavior, CLI overrides/check/status/queue delegation,
+AirLLM configuration and independent durable-job state. A synthetic local HTTP server
+exercises real server-process startup, health checks, `/props` and cleanup without inference.
+Existing queue, review, console, download and AirLLM protocol tests also run.
+
+Latest validation results: **42/42 new fit tests passed**, including the real local
+synthetic server test. The combined regression suite has **84 tests: 83 passed, one
+failed** because the existing AirLLM weight-cache test imports unavailable PyTorch.
+No skips were used to hide the missing dependency. Initial sandbox-only runs also
+recorded socket-permission errors; rerunning with localhost access resolved those.
+
+All development test outcomes (including environment failures) are appended under
+`[AUTOMATED TEST RUN]` in `logs/llm-fit-diagnostics.txt` by `run_fit_tests.py`.
+The runner captures verbose output and returns nonzero on failure. No suite runs during
+normal launch. Socket-based fixture tests need permission to bind localhost.
+
+Local limitations: `hermes/python/bin/python3.12`, the Hermes SDK and `runtime/llama-server`
+are absent. System Python 3.12 is used for tests. The existing AirLLM CPU cache test requires
+PyTorch, which is absent; no dependencies were installed or repaired. Real GGUF metadata
+was read from all four installed models; no weights were modified and no real tasks were
+executed. Actual inference, tokens/sec, peak RSS and real Hermes tool reliability are
+**not verified** here. Interactive prompt sequencing is tested with session fixtures;
+actual SDK readiness is logged only when its worker reaches that point.
+
+Manual shell checks verify startup menu, exit, missing-runtime return-to-menu and
+`bash launch.sh --status`. Configured default and original AirLLM files are unchanged.
+The weights remain under `models/drop-in/`. Full acceptance on a prepared USB still needs
+a real server/SDK launch: choose auto/default/manual, enter chat, `/quit`, repeat, and
+verify saved config is unchanged and diagnostics report matching model paths/readiness.
+No real inference or task-queue run should be inferred from synthetic tests.
+
+---
+
 # CapStone Hermes validation — 2026-10-05
 
 The installed USB program uses the real Hermes Agent SDK from release 0.21.5,

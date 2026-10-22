@@ -191,6 +191,8 @@ class Sessions:
                    'max_tokens': self.config.get('chat_max_tokens', self.config['max_tokens']) if interactive else self.config['max_tokens'], 'temperature': self.config['temperature'],
                    'command_timeout': self.config['command_timeout'], 'request_timeout': self.config['request_timeout']}
         request['task_id'] = folder.name
+        if self.config.get('_fit_run_id'):
+            request['fit_run_id'] = self.config['_fit_run_id']
         request['queue_task_id'] = getattr(self, 'queue_task_id', '')
         request['continuation_segments'] = int(self.config.get('continuation_segments', 1))
         if not review:
@@ -204,6 +206,9 @@ class Sessions:
         request['model_label'] = self.config.get('model_label', Path(self.config['model']).name)
         request['context_size'] = self.config.get('context_size')
         request['toolsets'] = self.config.get('toolsets', ['terminal', 'file', 'todo'])
+        if interactive and request['backend'] == 'llama.cpp':
+            request['toolsets'] = self.config.get('chat_toolsets', ['terminal'])
+            request['compact_tool_descriptions'] = True
         custom = ROOT / 'prompt.txt'
         if custom.is_file() and not review:
             request['system'] += '\nUSER INSTRUCTIONS:\n' + custom.read_text()
@@ -220,7 +225,10 @@ class Sessions:
             with shutdown_signals():
                 stop_process(process)
         if interactive:
-            return {'failed': code != 0}
+            result = {'failed': code != 0}
+            if self.config.get('_fit_run_id'):
+                result['hermes_ready'] = (folder / 'result.ready.json').is_file()
+            return result
         if not (folder / 'result.json').exists():
             raise RuntimeError('Hermes session exited (' + str(code) + '); see ' + str(folder))
         result = json.loads((folder / 'result.json').read_text())

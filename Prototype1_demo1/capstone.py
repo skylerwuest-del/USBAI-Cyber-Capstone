@@ -15,12 +15,9 @@ def runtime_config(config, backend, model=None):
     if backend != 'airllm':
         if model:
             config['model'] = model
-        profiles_path = ROOT / 'model-profiles.json'
-        profiles = json.loads(profiles_path.read_text()) if profiles_path.exists() else {}
         checkpoint = resolve(ROOT, config['model'])
-        store = (ROOT / 'models').resolve()
-        key = 'models/' + str(checkpoint.relative_to(store)) if checkpoint.is_relative_to(store) else str(checkpoint)
-        profile = profiles.get(key, {})
+        from llm_fit import model_profile
+        profile = model_profile(checkpoint, ROOT)
         config.update(profile)
         from gguf_metadata import context_length
         native = context_length(checkpoint)
@@ -30,6 +27,9 @@ def runtime_config(config, backend, model=None):
         config['local_context_compat'] = True
         config['compact_system_prompt'] = True
         config['chat_max_tokens'] = int(profile.get('chat_max_tokens', 512))
+        config['chat_toolsets'] = profile.get('chat_toolsets', ['terminal'])
+        config.setdefault('batch_size', 512)
+        config.setdefault('ubatch_size', 512)
         config['model_label'] = profile.get('model_label', checkpoint.name)
         return config
     path = ROOT / 'airllm-config.json'
@@ -68,7 +68,7 @@ def configure_hermes(config):
     # JSON is also valid YAML. Paths are regenerated for the current USB mount.
     home = ROOT / 'state' / 'hermes'
     home.mkdir(parents=True, exist_ok=True)
-    atomic_json(home / 'config.yaml', {
+    settings = {
         'model': {'default': 'capstone', 'provider': 'custom',
                   'base_url': 'http://127.0.0.1:' + str(config['port']) + '/v1',
                   'context_length': config['context_size']},
@@ -83,7 +83,10 @@ def configure_hermes(config):
         'tool_loop_guardrails': {'warnings_enabled': True, 'hard_stop_enabled': False,
                                  'non_interactive_hard_stop_enabled': False},
         'fallback_model': None,
-    })
+    }
+    if config.get('_interactive_chat') and config.get('backend') != 'airllm':
+        settings['tools'] = {'tool_search': {'enabled': 'off'}}
+    atomic_json(home / 'config.yaml', settings)
 
 
 def main(argv=None):
@@ -99,7 +102,14 @@ def main(argv=None):
     parser.add_argument('--serve-only', action='store_true')
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--status', action='store_true')
+    parser.add_argument('--benchmark-installed', action='store_true', help='Explicit offline speed test of compatible installed GGUFs')
+    parser.add_argument('--fit-session', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.benchmark_installed:
+        if args.backend != 'llama.cpp' or any((args.run, args.query, args.chat, args.serve_only, args.check, args.status, args.model, args.airllm_model)):
+            parser.error('--benchmark-installed must be used alone with the GGUF backend')
+        from fit_benchmark import run_benchmarks
+        return run_benchmarks(ROOT)
     args.state = args.state or ('state/airllm-task-loop.json' if args.backend == 'airllm' else 'state/task-loop.json')
     if args.status:
         path = resolve(ROOT, args.state)
@@ -107,6 +117,7 @@ def main(argv=None):
         return 0
     config = json.loads((ROOT / 'config.json').read_text())
     config = runtime_config(config, args.backend, args.airllm_model or args.model)
+    config['_interactive_chat'] = args.backend == 'llama.cpp' and not any((args.run, args.query, args.serve_only, args.check))
     for folder in ('state', 'logs', 'workspace'):
         (ROOT / folder).mkdir(exist_ok=True)
     if args.check:
@@ -125,6 +136,18 @@ def main(argv=None):
     tasks = load_tasks(resolve(ROOT, args.tasks)) if args.run else None
     if args.query:
         tasks = [{'prompt': args.query, 'id': 'query-' + __import__('hashlib').sha256(args.query.encode()).hexdigest()[:16]}]
+    if args.fit_session and args.backend == 'llama.cpp' and tasks is None and not args.serve_only:
+        from fit_diagnostics import DiagnosticRun
+        from model_startup import launch_candidate
+        report = DiagnosticRun('SELECTED MODEL APPLICATION MENU CHAT')
+        try:
+            with instance_lock(ROOT / 'state/runner.lock'):
+                launched, outcome = launch_candidate(resolve(ROOT, config['model']), config, report)
+            report.finish(outcome)
+            return 0 if launched and outcome == 'interactive session completed' else 1
+        except KeyboardInterrupt:
+            report.finish('Interrupted; owned session resources closed')
+            raise
     with instance_lock(ROOT / 'state' / 'runner.lock'):
         configure_hermes(config)
         server = Server(config)

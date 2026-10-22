@@ -241,3 +241,14 @@ Prototype1_demo1/**/*.whl
 Prototype1_demo1/**/*.tar
 Prototype1_demo1/**/*.tar.gz
 Prototype1_demo1/**/*.zip
+
+# LLM Fit runtime diagnostics (append-only, local to USB)
+Prototype1_demo1/logs/llm-fit-diagnostics.txt
+Prototype1_demo1/logs/llm-fit-diagnostics.txt.*
+# LLM Fit generated test artifacts; permanent tests stay versionable
+Prototype1_demo1/tests-hermes/.llm-fit-artifacts/
+Prototype1_demo1/tests-hermes/llm-fit-test-output.*
+
+# LLM Fit local measured-performance cache
+Prototype1_demo1/state/llm-fit-performance.json
+Prototype1_demo1/state/llm-fit-performance.lock

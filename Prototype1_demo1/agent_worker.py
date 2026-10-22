@@ -7,6 +7,8 @@ import signal
 import sys
 
 ROOT = Path(__file__).resolve().parent
+from portable_env import activate
+activate(ROOT)
 sys.path[:0] = [str(ROOT / 'hermes' / 'site-packages'), str(ROOT / 'hermes' / 'src')]
 os.environ.update(HERMES_HOME=str(ROOT / 'state' / 'hermes'),
                   PYTHONNOUSERSITE='1', PYTHONDONTWRITEBYTECODE='1',
@@ -117,9 +119,17 @@ def main():
                         thinking_callback=progress.thinking,
                         tool_progress_callback=lambda *args, **kwargs: None,
                         request_overrides=overrides)
+        if request.get('compact_tool_descriptions') and request.get('backend') == 'llama.cpp':
+            from chat_tools import compact_tool_descriptions
+            agent.tools = compact_tool_descriptions(agent.tools)
         progress.__enter__()
         history = None
         if request.get('interactive'):
+            if request.get('fit_run_id'):
+                from fit_diagnostics import DiagnosticRun
+                DiagnosticRun.attach(request['fit_run_id']).write('HERMES READY',
+                    hermes_ready=True, note='SDK agent constructed; entering interactive prompt')
+                atomic_json(result_path.with_suffix('.ready.json'), {'hermes_ready': True})
             print('Hermes SDK console | YOLO ON | local Ubuntu user permissions', flush=True)
             print('Model: ' + str(request.get('model_label') or 'capstone') + ' | context: ' + str(request.get('context_size')), flush=True)
             print('/quit exits; Ctrl+C stops this session and its model.', flush=True)

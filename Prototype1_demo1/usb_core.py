@@ -32,7 +32,11 @@ import urllib.error
 
 import urllib.request
 
+from portable_env import activate
+from hardware_runtime import select_runtime, runtime_environment, acceleration_args, cpu_threads
+
 ROOT = Path(__file__).resolve().parent
+activate(ROOT)
 sys.path.insert(0, str(ROOT / 'hermes' / 'site-packages'))
 
 def now():
@@ -167,6 +171,7 @@ class Server:
         self.config = config
         self.process = None
         self.log = None
+        self.start_attempted = False
         self.base = 'http://127.0.0.1:' + str(config['port'])
         self.client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
@@ -179,9 +184,27 @@ class Server:
         except (OSError, urllib.error.URLError):
             return False
 
+    def verify_model(self):
+        """Fit startup requires a ready owned server reporting the selected file."""
+        if not self.healthy():
+            raise RuntimeError('Model server is not ready')
+        with self.client.open(self.base + '/props', timeout=5) as response:
+            props = json.load(response)
+        if not isinstance(props, dict):
+            raise RuntimeError('Invalid model properties response from ready server')
+        actual = props.get('model_path')
+        if not isinstance(actual, str) or resolve(ROOT, actual) != resolve(ROOT, self.config['model']):
+            raise RuntimeError('Ready server did not report the selected model path')
+        return actual
+
     def ensure(self):
         if self.healthy():
+            if self.config.get('_fit_single_attempt'):
+                self.verify_model()
             return
+        if self.config.get('_fit_single_attempt') and self.start_attempted:
+            raise RuntimeError('Selected server stopped; automatic restart disabled for this selection cycle')
+        self.start_attempted = True
         self.close()
         cfg = self.config
         with socket.socket() as s:
@@ -190,9 +213,10 @@ class Server:
                 s.bind(('127.0.0.1', cfg['port']))
             except OSError:
                 raise RuntimeError('Configured server port is occupied; choose a free port in config.json') from None
-        server = resolve(ROOT, cfg['server'])
+        selection = select_runtime(cfg, ROOT) if cfg.get('backend') != 'airllm' else None
+        server = Path(selection['server']) if selection else resolve(ROOT, cfg['server'])
         model = resolve(ROOT, cfg['model'])
-        threads = cfg['threads'] or max(1, (os.cpu_count() or 2) // 2)
+        threads = cfg['threads'] or cpu_threads()
         airllm = cfg.get('backend') == 'airllm'
         if airllm:
             args = [str(ROOT / 'hermes/python/bin/python3.12'), '-s', '-B', str(ROOT / 'airllm_server.py'),
@@ -200,21 +224,30 @@ class Server:
                     '--context', str(cfg['context_size']), '--max-tokens', str(cfg['max_tokens']),
                     '--cache-gb', str(cfg.get('cache_gb', 8))]
         else:
-            args = [str(server), '--model', str(model), '--host', '127.0.0.1', '--port', str(cfg['port']), '--ctx-size', str(cfg['context_size']), '--threads', str(threads), '--n-gpu-layers', '0', '--parallel', '1', '--jinja', '--alias', 'capstone'] + chat_template_args(cfg) + cfg['server_args'] + ['--no-webui']
-        env = dict(os.environ, LLAMA_CACHE=str(ROOT / 'state' / 'llama-cache'))
-        env['LD_LIBRARY_PATH'] = str(server.parent) + (':' + env['LD_LIBRARY_PATH'] if env.get('LD_LIBRARY_PATH') else '')
+            args = [str(server), '--model', str(model), '--host', '127.0.0.1', '--port', str(cfg['port']), '--ctx-size', str(cfg['context_size']), '--threads', str(threads), '--parallel', '1', '--jinja', '--alias', 'capstone'] + chat_template_args(cfg) + cfg['server_args'] + acceleration_args(selection, cfg) + ['--no-webui']
+            if 'batch_size' in cfg:
+                args.extend(['--batch-size', str(cfg['batch_size']), '--ubatch-size', str(cfg['ubatch_size'])])
+        env = runtime_environment(ROOT, server)
+        if cfg.get('_fit_single_attempt'):
+            env = {key: value for key, value in env.items() if not key.startswith('LLAMA_ARG_')}
         log_name = 'airllm-server.log' if airllm else 'server.log'
         self.log = (ROOT / 'logs' / log_name).open('ab')
+        if selection:
+            print('Inference: ' + selection['backend'] + '; CPU threads: ' + str(threads), flush=True)
         try:
             self.process = subprocess.Popen(args, cwd=ROOT, env=env, stdin=subprocess.DEVNULL, stdout=self.log, stderr=self.log, start_new_session=True)
         except BaseException:
             self.close()
             raise
-        print('Starting USB ' + ('AirLLM' if airllm else 'llama.cpp') + ' model server...', flush=True)
+        if not cfg.get('_fit_single_attempt'):
+            print('Starting USB ' + ('AirLLM' if airllm else 'llama.cpp') + ' model server...', flush=True)
         end = time.monotonic() + cfg['startup_timeout']
         while time.monotonic() < end:
             if self.healthy():
-                print('Model ready at ' + self.base, flush=True)
+                if cfg.get('_fit_single_attempt'):
+                    self.verify_model()
+                else:
+                    print('Model ready at ' + self.base, flush=True)
                 return
             if self.process.poll() is not None:
                 raise RuntimeError('Model server exited; see logs/' + log_name)
