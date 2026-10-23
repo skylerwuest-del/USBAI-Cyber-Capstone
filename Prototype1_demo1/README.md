@@ -178,15 +178,24 @@ model or quantization unsupported by the bundled llama.cpp build.
 
 Good Fit leaves at least two reserves; Marginal Fit leaves one; Does Not Fit fails a
 hard requirement; Unknown lacks safe evidence. Only Good/Marginal candidates are tried.
-Scores combine log-scaled tensor parameter capacity (25 points maximum), documented
-tool suitability (35 verified / 12 experimental / 0 unknown), context (10 maximum),
-memory headroom (15 maximum), relative CPU cost (10 maximum), and quantization (5 or 3).
+Scores combine log-scaled tensor parameter capacity (25 points maximum), context (10 maximum),
+memory headroom (15 maximum), estimated GPU offload (20 maximum), remaining CPU cost
+(10 maximum, scaled down as GPU coverage increases), and quantization (5 or 3).
+GPU coverage is the largest device’s reported free VRAM minus `gpu_reserve_mib`
+(default 1024 MiB), divided by total estimated model/context/runtime memory and capped
+at 100%. Device budgets are not summed. Unknown VRAM or CPU-only mode gets no GPU
+credit. RAM eligibility remains conservative and receives no VRAM credit. This estimates
+offload suitability, not GPU compute speed or tokens per second. No model is loaded
+or benchmarked for ranking; the existing runtime device query only reads device information.
 These are deterministic heuristic points, not benchmark measurements. Paths break ties.
+The installed collection is manually tested for tool calling before deployment; remove
+models that fail that testing. Tool-test history is informational and never adds points
+or excludes a model. A new computer needs no previous tests or runtime measurements.
 A template or model name alone does not establish verified Hermes compatibility.
 
 Optional `llm_fit` fields in a model profile are `tool_calling` (`unknown`,
-`experimental`, `verified`, or `incompatible`), `capability_evidence` for any positive
-claim, `kv_bytes_per_token` with `memory_evidence` for otherwise unsupported KV layouts,
+`experimental`, `verified`, or `incompatible`) and `capability_evidence` to document
+manual testing (both informational only), `kv_bytes_per_token` with `memory_evidence` for otherwise unsupported KV layouts,
 and `extra_overhead_bytes`. Existing profiles/settings stay in place; canonical path
 matching preserves their meaning after moving weights into drop-in and linking old paths.
 Only known local server arguments (`--reasoning-budget N` currently) are accepted by
@@ -213,16 +222,10 @@ time and a 64 KiB header digest, not a full weight integrity hash. Moving the US
 another mount does not itself change identity. Unknown hardware identity disables reuse.
 Current available RAM is **always** checked afresh and cannot be overridden by history.
 
-Only observations from the last 30 days are considered. Three generation samples of
-at least eight tokens each are required for a speed adjustment. Median measured speed
-adds a small heuristic preference: `3 * log2(median tokens/sec / 5)`, capped to ±6 points.
-Two measured loads enable a load-time penalty capped at 2 points. Consecutive observed
-server/runtime failures add a penalty capped at 6 points; a successful load resets that
-streak. Total adjustment is capped to -10 through +6 points. These are preference weights,
-not benchmarks of model intelligence. Existing capability/tool-evidence scores remain
-separate, and measurements never make an ineligible model eligible. Corrupt history is
-left intact, ignored for ranking, and noted in diagnostics; telemetry write failures do
-not interrupt chat. Original CLI/queue/AirLLM pathways do not enable this sampler.
+Automatic ranking uses hardware estimates only. Cached timings, load times and failures
+never change selection scores. Passive observations remain available for diagnostics;
+telemetry write failures do not interrupt chat. Original CLI/queue/AirLLM pathways do
+not enable this sampler.
 
 For an intentional comparison, choose original application menu option **11**, or run:
 

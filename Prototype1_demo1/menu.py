@@ -57,7 +57,7 @@ def run(*args, active_model=None):
 def main(active_model=None):
     while True:
         if active_model:
-            print('\nSession GGUF: ' + str(active_model))
+            print('\nSession GGUF: ' + os.path.basename(str(active_model)))
         print('''
 CapStone — local Hermes, terminal only
 1) Start interactive Hermes (model + terminal/file tools)

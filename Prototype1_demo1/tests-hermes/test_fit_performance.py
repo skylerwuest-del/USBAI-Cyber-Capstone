@@ -93,18 +93,30 @@ class PerformanceTests(unittest.TestCase):
         self.store.append(self.identity, [self.generation(1e6)] * 3)
         self.assertLessEqual(self.store.adjustment(self.identity)['points'], 6)
         rows = llm_fit.rank_models(self.config, self.hardware, self.root)
-        self.assertEqual(rows[0]['performance']['points'], 6)
-        self.assertEqual(rows[0]['score'], rows[0]['base_score'] + 6)
+        self.assertEqual(rows[0]['performance']['points'], 0)
+        self.assertEqual(rows[0]['score'], rows[0]['base_score'])
         blocked = llm_fit.rank_models(self.config, dict(self.hardware, runtime_compatible=False, runtime_reason='unsupported'), self.root)
         self.assertFalse(blocked[0]['eligible'])
 
-    def test_observations_can_change_ranking_without_erasing_quality(self):
+    def test_new_device_ranks_without_previous_observations(self):
+        b = fixture(self.root / 'models/b.gguf', parameters=4 * 1024**3)
+        self.store.append(self.identity, [self.generation(100)] * 3)
+        new_device = dict(self.hardware, cpu='Previously unseen CPU')
+        rows = llm_fit.rank_models(self.config, new_device, self.root)
+        self.assertEqual(rows[0]['path'], str(b))
+        for row in rows:
+            self.assertTrue(row['eligible'])
+            self.assertEqual(row['performance']['points'], 0)
+            self.assertEqual(row['score'], row['base_score'])
+
+    def test_observations_do_not_change_hardware_ranking(self):
         b = fixture(self.root / 'models/b.gguf')
         other = perf.measurement_identity(b, self.config, self.hardware, self.root)
         self.store.append(other, [self.generation(20)] * 3)
         ranked = llm_fit.rank_models(self.config, self.hardware, self.root)
-        self.assertEqual(ranked[0]['path'], str(b))
-        self.assertIn('tools', ranked[0]['factors'])
+        self.assertEqual(ranked[0]['path'], str(self.model))
+        self.assertTrue(all(row['score'] == row['base_score'] for row in ranked))
+        self.assertNotIn('tools', ranked[0]['factors'])
         self.assertEqual(ranked[0]['hermes_compatibility'], 'unknown')
 
     def test_failures_recorded_and_successful_load_resets_streak(self):

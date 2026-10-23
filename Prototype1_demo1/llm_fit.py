@@ -4,6 +4,7 @@ import math
 import os
 from pathlib import Path
 import platform
+import re
 import struct
 import subprocess
 
@@ -93,7 +94,18 @@ def detect_hardware(config, root=ROOT):
                 backend='llama.cpp ' + selection['backend'] + (' (automatic VRAM offload)' if selection['gpu'] else ' (--n-gpu-layers 0)'), runtime_compatible=compatible,
                 selected_server=str(server), runtime_probe_errors=selection['probe_errors'],
                 runtime_reason=reason,
-                gpu_policy='Automatic offload on a usable USB GPU runtime. Fit retains conservative system RAM bounds; VRAM is not added to RAM.')
+                gpu_policy='Estimate offload from reported free VRAM minus reserve; no model benchmark. Fit retains conservative system RAM bounds; VRAM is not added to RAM.')
+
+
+def gpu_budget(hardware, config):
+    """Largest reported free device budget; no model loading or speed tests."""
+    if config.get('acceleration') == 'cpu' or not hardware.get('gpu_acceleration_supported'):
+        return 0
+    # llama.cpp --list-devices reports e.g. (11876 MiB, 11717 MiB free).
+    free = re.findall(r'\([\d.]+ MiB, ([\d.]+) MiB free\)',
+                      hardware.get('runtime_devices', ''))
+    reserve = max(0, float(config.get('gpu_reserve_mib', 1024))) * 1024**2
+    return max(0, max((float(value) * 1024**2 for value in free), default=0) - reserve)
 
 
 def installed_models(root=ROOT):
@@ -191,30 +203,33 @@ def evaluate(path, error, config, hardware, root=ROOT):
         if estimated + reserve > available:
             result.update(classification='Does Not Fit', reasons=['Estimated RAM plus safety reserve exceeds current available RAM'])
             return result
-        evidence = fit.get('tool_calling', 'unknown')
-        result['hermes_compatibility'] = evidence
-        if evidence == 'incompatible':
-            result.update(classification='Does Not Fit', reasons=['Profile marks tool calling incompatible'])
-            return result
-        if evidence not in ('verified', 'experimental', 'unknown'):
-            raise ValueError('Invalid tool compatibility evidence')
-        if evidence != 'unknown' and not fit.get('capability_evidence'):
-            raise ValueError('Tool suitability claim requires capability_evidence')
+        # The installed collection is manually vetted before deployment. Tool-test
+        # history is diagnostic information, never a device-fit gate or bonus.
         if not meta.get('has_chat_template') and path.name not in config.get('chat_templates', {}):
             raise ValueError('No installed chat template evidence')
         if result['quantization'] == 'Unknown':
             raise ValueError('Unknown quantization')
         parameters = positive(meta.get('parameter_count_estimate'), 'tensor parameter estimate') / 1e9
-        # Explainable heuristic points, not measured benchmarks or tok/s.
+        # Budget weights, context state and overhead together. Fractional coverage
+        # approximates offload; it is not a promise of layer placement or throughput.
+        vram = gpu_budget(hardware, config)
+        coverage = min(1, vram / estimated)
+        cpu_points = 10 / (1 + parameters / max(1, hardware['cores'] / 4))
+        result['gpu_estimate'] = dict(usable_vram=vram, offload_fraction=coverage,
+                                    fully_resident=bool(vram >= estimated))
+        result['assumptions'].append(
+            'GPU estimate uses largest reported free VRAM minus configured reserve; '
+            'offload fraction = usable VRAM / total estimated memory, capped at 1. '
+            'Unknown VRAM receives no GPU credit; no model inference or speed test.')
         factors = dict(capacity=min(25, 8 * math.log2(1 + parameters)),
-                       tools={'verified': 35, 'experimental': 12, 'unknown': 0}[evidence],
                        context=min(10, 2 * math.log2(context / 4096 + 1)),
                        memory_headroom=15 * max(0, 1 - (estimated + reserve) / available),
-                       cpu_responsiveness=10 / (1 + parameters / max(1, hardware['cores'] / 4)),
+                       cpu_responsiveness=cpu_points * (1 - coverage),
+                       gpu_offload=20 * coverage,
                        quantization=5 if result['quantization'] in ('F32', 'F16', 'BF16', 'Q8_0') else 3)
         result.update(classification='Good Fit' if estimated + 2 * reserve <= available else 'Marginal Fit',
                       eligible=True, score=round(sum(factors.values()), 6), factors=factors,
-                      reasons=['Heuristic quality/context/tool evidence balanced against CPU cost and RAM headroom',
+                      reasons=['Heuristic capacity/context balanced against estimated GPU offload, CPU cost and current RAM headroom',
                                'Tool execution reliability is not established by the filename or template'])
     except (OSError, ValueError, KeyError, TypeError, OverflowError) as exc:
         result['reasons'].append(str(exc))
@@ -223,19 +238,8 @@ def evaluate(path, error, config, hardware, root=ROOT):
 
 def rank_models(config, hardware, root=ROOT):
     rows = [evaluate(path, error, config, hardware, root) for path, error in installed_models(root)]
-    from fit_performance import PerformanceStore, measurement_identity
-    store = PerformanceStore(root)
     for row in rows:
-        if not row['eligible']:
-            continue
-        try:
-            active = dict(config, **row.get('profile', {}))
-            active.update(model=row['path'], context_size=row['context'])
-            observed = store.adjustment(measurement_identity(row['path'], active, hardware, root))
-            row['performance'] = observed
+        if row['eligible']:
             row['base_score'] = row['score']
-            row['score'] = round(row['score'] + observed['points'], 6)
-            row['factors']['measured_performance'] = observed['points']
-        except (OSError, ValueError, TypeError, KeyError) as exc:
-            row['performance'] = {'points': 0, 'warning': str(exc)}
+            row['performance'] = {'points': 0, 'note': 'Hardware estimates only; history does not affect ranking'}
     return sorted(rows, key=lambda row: (not row['eligible'], -row['score'], row['path']))

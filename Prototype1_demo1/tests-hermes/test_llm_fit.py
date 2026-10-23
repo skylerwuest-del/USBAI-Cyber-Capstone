@@ -89,6 +89,32 @@ class FitTests(unittest.TestCase):
         row = self.evaluate(available_ram=fit.GIB, gpus=['GPU'], gpu_acceleration_supported=False)
         self.assertFalse(row['eligible'])
 
+    def test_gpu_full_partial_and_unknown_vram(self):
+        cpu = self.evaluate()
+        full = self.evaluate(gpu_acceleration_supported=True,
+                             runtime_devices='CUDA0: GPU (12000 MiB, 11000 MiB free)')
+        partial = self.evaluate(gpu_acceleration_supported=True,
+                                runtime_devices='CUDA0: GPU (2000 MiB, 1500 MiB free)')
+        unknown = self.evaluate(gpu_acceleration_supported=True, runtime_devices='CUDA0: GPU')
+        self.assertTrue(full['gpu_estimate']['fully_resident'])
+        self.assertEqual(full['factors']['gpu_offload'], 20)
+        self.assertEqual(full['factors']['cpu_responsiveness'], 0)
+        self.assertGreater(partial['gpu_estimate']['offload_fraction'], 0)
+        self.assertLess(partial['gpu_estimate']['offload_fraction'], 1)
+        self.assertGreater(full['score'], partial['score'])
+        self.assertGreater(partial['score'], cpu['score'])
+        self.assertEqual(unknown['score'], cpu['score'])
+
+    def test_gpu_reserve_cpu_policy_and_no_ram_credit(self):
+        hardware = dict(self.hardware, gpu_acceleration_supported=True,
+                        runtime_devices='CUDA0: A (12000 MiB, 11000 MiB free)\n'
+                                        'CUDA1: B (12000 MiB, 11000 MiB free)')
+        self.assertEqual(fit.gpu_budget(hardware, self.config), 9976 * 1024**2)
+        self.assertEqual(fit.gpu_budget(hardware, dict(self.config, acceleration='cpu')), 0)
+        self.assertEqual(fit.gpu_budget(hardware, dict(self.config, gpu_reserve_mib=12000)), 0)
+        row = self.evaluate(**dict(hardware, available_ram=fit.GIB))
+        self.assertFalse(row['eligible'])
+
     def test_missing_corrupt_and_missing_tensor_metadata(self):
         for contents in (b'garbage', b'GGUF', b'GGUF' + struct.pack('<IQQ', 3, 0, 0)):
             self.a.write_bytes(contents)
@@ -111,18 +137,19 @@ class FitTests(unittest.TestCase):
         fixture(self.a, native=4096)
         self.assertEqual(self.evaluate()['classification'], 'Does Not Fit')
 
-    def test_hermes_capability_evidence_changes_ranking(self):
+    def test_tool_history_does_not_change_scores_or_eligibility(self):
         b = fixture(self.root / 'models/b.gguf', parameters=4 * 1024**3)
-        self.profiles({'models/a.gguf': {'llm_fit': {'tool_calling': 'verified',
-                       'capability_evidence': 'Synthetic test evidence, not a production claim'}}})
-        rows = fit.rank_models(self.config, self.hardware, self.root)
-        self.assertEqual(rows[0]['path'], str(self.a))
-        self.assertGreater(rows[0]['score'], rows[1]['score'])
-        self.assertNotEqual(rows[0]['path'], str(b))
-
-    def test_unsubstantiated_capability_claim_is_unknown(self):
-        self.profiles({'models/a.gguf': {'llm_fit': {'tool_calling': 'verified'}}})
-        self.assertEqual(self.evaluate()['classification'], 'Unknown')
+        baseline = fit.rank_models(self.config, self.hardware, self.root)
+        for status in ('verified', 'experimental', 'unknown', 'incompatible'):
+            with self.subTest(status=status):
+                self.profiles({'models/a.gguf': {'llm_fit': {'tool_calling': status}}})
+                rows = fit.rank_models(self.config, self.hardware, self.root)
+                self.assertEqual(rows[0]['path'], str(b))
+                self.assertEqual([r['score'] for r in rows], [r['score'] for r in baseline])
+                self.assertTrue(all(r['eligible'] for r in rows))
+                a = next(r for r in rows if r['path'] == str(self.a))
+                self.assertEqual(a['hermes_compatibility'], status)
+                self.assertNotIn('tools', a['factors'])
 
     def test_deterministic_scores(self):
         self.assertEqual(self.evaluate(), self.evaluate())
