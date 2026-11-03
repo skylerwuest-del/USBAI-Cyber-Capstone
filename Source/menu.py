@@ -68,7 +68,6 @@ CapStone — local Hermes, terminal only
 6) Select an installed GGUF model
 7) Edit the AI's standing instructions (prompt.txt)
 8) Serve the local model only
-9) AirLLM + Hermes (interactive tools or autonomous tasks)
 10) USB toolkit (tools, local self-test, offline repair)
 11) Test installed GGUF models (optional performance benchmark)
 0) Exit''')
@@ -102,10 +101,6 @@ CapStone — local Hermes, terminal only
             elif choice == '10':
                 from toolkit_tools import menu as toolkit_menu
                 toolkit_menu()
-            elif choice == '9':
-                from airllm_menu import main as airllm_menu
-                if airllm_menu() == 'completed':
-                    return 0
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
             print(str(exc))
         except KeyboardInterrupt:

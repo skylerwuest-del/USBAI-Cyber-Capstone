@@ -418,17 +418,11 @@ class ExistingLifecycleTests(unittest.TestCase):
             queue.assert_called_once()
             server.close.assert_called_once()
 
-    def test_airllm_config_path_is_preserved(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            checkpoint = root / 'airllm/models/local'
-            checkpoint.mkdir(parents=True)
-            (checkpoint / 'config.json').write_text(json.dumps({'max_position_embeddings': 16384}))
-            (root / 'airllm-config.json').write_text(json.dumps({'model': str(checkpoint)}))
-            with patch.object(capstone, 'ROOT', root), patch.object(fit, 'rank_models', side_effect=AssertionError('GGUF only')):
-                result = capstone.runtime_config({}, 'airllm')
-            self.assertEqual(result['backend'], 'airllm')
-            self.assertEqual(result['model'], str(checkpoint))
+    def test_unsupported_backend_is_rejected_without_loading_a_model(self):
+        with patch.object(fit, 'model_profile', side_effect=AssertionError('must not load a model')):
+            with self.assertRaisesRegex(ValueError, 'Unsupported model backend'):
+                capstone.runtime_config({}, 'unsupported')
+
 
 
     def test_cli_check_delegates_without_starting_server(self):

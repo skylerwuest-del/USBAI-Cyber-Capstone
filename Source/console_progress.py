@@ -29,17 +29,6 @@ class ConsoleProgress:
             self.waiting = bool(message)
 
     def detail(self):
-        if self.backend == 'airllm':
-            path = self.root / 'logs/airllm-server.log'
-            with path.open('rb') as handle:
-                handle.seek(max(0, path.stat().st_size - 8192))
-                lines = handle.read().decode(errors='replace').splitlines()
-            for line in reversed(lines):
-                if 'AirLLM generated ' in line:
-                    return line.strip()
-                if 'AirLLM request:' in line:
-                    return 'AirLLM is processing the prompt'
-            return ''
         with self.client.open(self.base + '/slots', timeout=1) as response:
             slots = json.load(response)
         for slot in slots:

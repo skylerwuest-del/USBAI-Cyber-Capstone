@@ -27,12 +27,16 @@ class StartupFlowTests(unittest.TestCase):
             self.assertEqual(command[command.index('--model') + 1], '/models/selected.gguf')
             self.assertEqual('--fit-session' in command, '--chat' in args)
 
-    def test_airllm_run_never_gets_gguf_override(self):
+    def test_explicit_cli_model_is_not_replaced_by_menu_selection(self):
         process = Mock()
         with patch.object(menu.subprocess, 'Popen', return_value=process) as launch:
-            menu.run('--backend', 'airllm', '--chat', active_model='/models/gguf')
-        self.assertNotIn('--model', launch.call_args.args[0])
-        self.assertNotIn('--fit-session', launch.call_args.args[0])
+            menu.run('--backend', 'llama.cpp', '--model', '/models/explicit.gguf',
+                     '--chat', active_model='/models/selected.gguf')
+        command = launch.call_args.args[0]
+        self.assertEqual(command.count('--model'), 1)
+        self.assertEqual(command[command.index('--model') + 1], '/models/explicit.gguf')
+        self.assertNotIn('--fit-session', command)
+
 
     def test_original_menu_retains_selection_after_chat(self):
         with patch('builtins.input', side_effect=['1', '1', '0']), patch.object(menu, 'run') as run, \
@@ -81,11 +85,11 @@ class StartupFlowTests(unittest.TestCase):
         self.assertIn('12 tokens generated', self.progress({'is_processing': True, 'next_token': [{'n_decoded': 12}]}))
         self.assertIn('first prompt batch', self.progress({'is_processing': True, 'next_token': []}))
 
-    def test_interactive_discovery_overhead_disabled_without_changing_queue_or_airllm(self):
+    def test_interactive_discovery_overhead_disabled_without_changing_queue(self):
         original = json.loads((Path(__file__).resolve().parents[1] / 'config.json').read_text())
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            for backend, interactive in [('llama.cpp', True), ('llama.cpp', False), ('airllm', True)]:
+            for backend, interactive in [('llama.cpp', True), ('llama.cpp', False)]:
                 config = dict(original, backend=backend, _interactive_chat=interactive)
                 with patch.object(capstone, 'ROOT', root):
                     capstone.configure_hermes(config)

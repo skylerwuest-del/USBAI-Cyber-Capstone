@@ -213,24 +213,17 @@ class Server:
                 s.bind(('127.0.0.1', cfg['port']))
             except OSError:
                 raise RuntimeError('Configured server port is occupied; choose a free port in config.json') from None
-        selection = select_runtime(cfg, ROOT) if cfg.get('backend') != 'airllm' else None
-        server = Path(selection['server']) if selection else resolve(ROOT, cfg['server'])
+        selection = select_runtime(cfg, ROOT)
+        server = Path(selection['server'])
         model = resolve(ROOT, cfg['model'])
         threads = cfg['threads'] or cpu_threads()
-        airllm = cfg.get('backend') == 'airllm'
-        if airllm:
-            args = [str(ROOT / 'hermes/python/bin/python3.12'), '-s', '-B', str(ROOT / 'airllm_server.py'),
-                    '--model', str(model), '--port', str(cfg['port']),
-                    '--context', str(cfg['context_size']), '--max-tokens', str(cfg['max_tokens']),
-                    '--cache-gb', str(cfg.get('cache_gb', 8))]
-        else:
-            args = [str(server), '--model', str(model), '--host', '127.0.0.1', '--port', str(cfg['port']), '--ctx-size', str(cfg['context_size']), '--threads', str(threads), '--parallel', '1', '--jinja', '--alias', 'capstone'] + chat_template_args(cfg) + cfg['server_args'] + acceleration_args(selection, cfg) + ['--no-webui']
-            if 'batch_size' in cfg:
-                args.extend(['--batch-size', str(cfg['batch_size']), '--ubatch-size', str(cfg['ubatch_size'])])
+        args = [str(server), '--model', str(model), '--host', '127.0.0.1', '--port', str(cfg['port']), '--ctx-size', str(cfg['context_size']), '--threads', str(threads), '--parallel', '1', '--jinja', '--alias', 'capstone'] + chat_template_args(cfg) + cfg['server_args'] + acceleration_args(selection, cfg) + ['--no-webui']
+        if 'batch_size' in cfg:
+            args.extend(['--batch-size', str(cfg['batch_size']), '--ubatch-size', str(cfg['ubatch_size'])])
         env = runtime_environment(ROOT, server)
         if cfg.get('_fit_single_attempt'):
             env = {key: value for key, value in env.items() if not key.startswith('LLAMA_ARG_')}
-        log_name = 'airllm-server.log' if airllm else 'server.log'
+        log_name = 'server.log'
         self.log = (ROOT / 'logs' / log_name).open('ab')
         if selection:
             print('Inference: ' + selection['backend'] + '; CPU threads: ' + str(threads), flush=True)
@@ -240,7 +233,7 @@ class Server:
             self.close()
             raise
         if not cfg.get('_fit_single_attempt'):
-            print('Starting USB ' + ('AirLLM' if airllm else 'llama.cpp') + ' model server...', flush=True)
+            print('Starting USB llama.cpp model server...', flush=True)
         end = time.monotonic() + cfg['startup_timeout']
         while time.monotonic() < end:
             if self.healthy():

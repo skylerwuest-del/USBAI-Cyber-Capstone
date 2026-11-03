@@ -1,16 +1,45 @@
+# GGUF-only source cleanup — 2026-11-03
+
+The active application now supports GGUF models through llama.cpp only, with the
+existing CPU/GPU runtime selection, Hermes tools, autonomous queue and durable jobs.
+The retired backend's scripts, configuration, dependency lock, menu entry, CLI flags,
+server branches, progress handling and tests were removed together. Application menu
+numbers 1–8, 10 and 11 remain unchanged; slot 9 is unused.
+
+The pre-change baseline ran 148 tests: 147 passed and one then-optional backend cache
+test failed because PyTorch was unavailable. After removing that backend and adding
+menu/CLI compatibility coverage, **all 135 remaining tests passed** using host Python
+3.14 with local loopback access. Coverage includes GGUF fit/ranking, CPU/GPU runtime
+selection, model download/selection, setup, selected-model propagation, menu option 3,
+queue/reviewer/durable-job semantics, console progress and process cleanup.
+
+Shell syntax checks passed for `launch.sh`, `setup.sh` and `startup.sh`. Actual launcher
+`--help`, `--status` and startup-menu exit smoke checks passed. An active-source scan
+found no remaining imports, filenames or documentation references to the retired backend.
+Tests ran in an external working copy, keeping generated test state outside `Source/`.
+
+No model weights or installed inference environment are present in the source checkout.
+These checks use synthetic fixtures/local mock servers and do not establish a new
+real-model or physical-GPU validation. No setup downloads, user task queue or password
+audit ran. The original source and historical validation notes are preserved outside
+the repository in the pre-cleanup backup under `/home/charles/Work/`.
+The historical demo snapshot is unchanged. Earlier test counts below are historical.
+
+---
+
 # Startup menu and first-prompt revision — 2026-10-20
 
 Startup now contains only model choices 1–3 and exit. Each successful choice opens the
 original application menu without starting a server or chat. That menu's chat/queue/serve
 actions receive the selected session-only GGUF model; choosing a saved model explicitly
 replaces the override. Original options 1–10 remain and optional benchmarking is now 11.
-AirLLM commands do not inherit a GGUF override. Saved `config.json` and model weights
+Saved `config.json` and model weights
 are unchanged. Chat still uses the existing real Server/Sessions lifecycle and telemetry.
 
 Interactive GGUF prompts now advertise terminal/process tools directly with concise
 app-owned descriptions and disable SDK tool-discovery bridge overhead. Actual function
 names, argument schemas, required fields and constraints are retained, with no vendored
-SDK edits. Queue/review tool definitions and AirLLM remain as before. Existing tiny-model
+SDK edits. Queue/review tool definitions remain as before. Existing tiny-model
 profiles also apply to flat drop-in copies, and Coder 7B has the bundled Qwen tool template.
 Qwen 9B has narrow experimental suitability evidence from the user's successful file task;
 this is not a general tool-reliability certification.
@@ -23,9 +52,9 @@ It distinguishes prompt counts from generation counts. Old performance measureme
 not reused under the new prompt/batch identity. CPU evaluation is still real computation;
 menu changes alone do not make a weak model correctly execute tool calls.
 
-Bundled-Python regression suite: **129 tests, 128 passed**, one existing AirLLM test
+Bundled-Python regression suite: **129 tests, 128 passed**, one then-optional backend test
 fails because optional PyTorch is absent. Tests cover selected-model propagation, chat
-return behavior, explicit saved-model switching, AirLLM isolation, preserved JSON schemas,
+return behavior, explicit saved-model switching, preserved JSON schemas,
 small batch settings, honest zero/batch progress, and dict/list generation counters.
 The current user's active chat was left running; real integration checks use a temporary
 source copy and separate loopback port, shared weights opened for inference, and a harmless `/tmp`
@@ -66,14 +95,14 @@ check, including use of the server-reported decode speed.
 Automatic menu option 1 was also exercised through the actual `launch.sh`: it selected
 Qwen2.5 Coder 7B, loaded it, reached the real Hermes prompt in 8.6 seconds, then returned
 to the startup menu and exited. Final bundled-Python suite: **120 tests, 119 passed, one
-failed** because the separate existing AirLLM cache test requires uninstalled PyTorch.
+failed** because the separate then-optional backend cache test requires uninstalled PyTorch.
 All eight setup tests and the real-runtime timing-format regression test passed.
 
 Eight setup tests cover library cache creation/offline reuse, archive safety, missing/corrupt
 offline assets, installed-model preservation, the unified command sequence, readiness only
 after successful verification, and pinned wheel downloads before offline installation.
 Earlier missing-runtime statements below describe the pre-setup state and are historical.
-AirLLM/PyTorch and the optional toolkit were not installed or altered by this GGUF setup.
+The optional toolkit was not installed or altered by this GGUF setup.
 Compatibility of the host-generated library cache with other OS releases is not implied.
 
 ---
@@ -84,9 +113,9 @@ Added numeric-only passive timing collection for interactive startup selections,
 measurement reuse as a bounded ranking adjustment, and explicit startup option 5 /
 `bash launch.sh --benchmark-installed`. The original RAM/context/runtime gates run before
 history is considered. Default and manual selection still bypass ranking. No benchmark
-runs at normal startup, and no model weights or AirLLM components are changed.
+runs at normal startup, and no model weights are changed.
 
-Latest combined suite: **111 tests, 110 passed, one failed** (the existing AirLLM
+Latest combined suite: **111 tests, 110 passed, one failed** (a then-optional backend
 cache test requires absent PyTorch). All 27 new performance tests and all 42 fit tests
 passed. A startup/session fixture verifies that loader/warmup timing lines are excluded
 and only later request timings are reused. Actual shell menu, `--status`, and explicit
@@ -115,13 +144,13 @@ Unit tests cover RAM pressure/reserves, CPU/runtime ABI, GPU presence vs support
 GGUF parsing/discovery, native context, profile evidence, deterministic scoring, session-only
 overrides, no confirmation, default/manual paths, bounded fallback, readiness/model identity,
 diagnostic appends, offline scan behavior, CLI overrides/check/status/queue delegation,
-AirLLM configuration and independent durable-job state. A synthetic local HTTP server
+independent durable-job state. A synthetic local HTTP server
 exercises real server-process startup, health checks, `/props` and cleanup without inference.
-Existing queue, review, console, download and AirLLM protocol tests also run.
+Existing queue, review, console and download tests also run.
 
 Latest validation results: **42/42 new fit tests passed**, including the real local
 synthetic server test. The combined regression suite has **84 tests: 83 passed, one
-failed** because the existing AirLLM weight-cache test imports unavailable PyTorch.
+failed** because the then-optional backend weight-cache test imports unavailable PyTorch.
 No skips were used to hide the missing dependency. Initial sandbox-only runs also
 recorded socket-permission errors; rerunning with localhost access resolved those.
 
@@ -131,7 +160,7 @@ The runner captures verbose output and returns nonzero on failure. No suite runs
 normal launch. Socket-based fixture tests need permission to bind localhost.
 
 Local limitations: `hermes/python/bin/python3.12`, the Hermes SDK and `runtime/llama-server`
-are absent. System Python 3.12 is used for tests. The existing AirLLM CPU cache test requires
+are absent. System Python 3.12 is used for tests. A then-optional backend CPU cache test required
 PyTorch, which is absent; no dependencies were installed or repaired. Real GGUF metadata
 was read from all four installed models; no weights were modified and no real tasks were
 executed. Actual inference, tokens/sec, peak RSS and real Hermes tool reliability are
@@ -139,7 +168,7 @@ executed. Actual inference, tokens/sec, peak RSS and real Hermes tool reliabilit
 actual SDK readiness is logged only when its worker reaches that point.
 
 Manual shell checks verify startup menu, exit, missing-runtime return-to-menu and
-`bash launch.sh --status`. Configured default and original AirLLM files are unchanged.
+`bash launch.sh --status`. Configured default settings are unchanged.
 The weights remain under `models/drop-in/`. Full acceptance on a prepared USB still needs
 a real server/SDK launch: choose auto/default/manual, enter chat, `/quit`, repeat, and
 verify saved config is unchanged and diagnostics report matching model paths/readiness.
@@ -245,98 +274,11 @@ image lacked system CA certificates; the bundle now supplies its trusted CA file
 Compared every original workspace file byte for byte against the backup and compared
 all original task prompts and VERIFY lines: **preserved**. Only obsolete task-file
 comment instructions were updated. Both the original 4.68 GB model and new 5.68 GB model
-remain on the drive. No symlinks exist in the Hermes, AirLLM or model runtime bundles.
-
-## Original AirLLM experiment (before the Hermes integration)
-
-AirLLM 4.0.0, Transformers 5.8.0 and CPU-only PyTorch 2.6.0 are installed separately.
-Actual CPU layer splitting and token generation passed with a tiny locally generated
-synthetic Llama model, both on the host and inside Ubuntu 26.04.1. This uses real
-AirLLM streaming code, with no GPU or CUDA runtime.
-
-At the time of the original rebuild, this proved the portable CPU experiment worked with that tiny model. It does not prove
-useful language quality, acceptable huge-model speed, compatibility with every model
-architecture, or an AirLLM-backed Hermes agent. At that stage, the task harness used
-GGUF through llama.cpp. The integration below supersedes that limitation. Large Transformers weights and layer copies must fit the USB;
-the experiment checks space before downloading them.
-
-
-## AirLLM + Hermes integration
-
-Menu 9 now launches the actual Hermes SDK against a CPU AirLLM service, with either
-interactive terminal tools or the same persistent worker/reviewer task loop. Its submenu
-includes Hugging Face Transformers repository downloads, installed-model selection,
-task editing, queue progress and dependency repair. The default GGUF path is preserved.
-
-A real public Qwen3-1.7B checkpoint is installed on the USB, pinned to revision
-`70d244cc86ccca08cf5af4e1e306ecf908b1ad5e`. Its original weights were verified against
-published SHA-256 values and split by AirLLM into reusable USB-local layer files.
-Inference and all validation tool actions used the Ubuntu 26.04.1 userland described
-above, mounted at a different path from the host's USB mount. No cloud inference or
-scripted model responses were used in the real-model sessions.
-
-Actual Hermes tool receipts include mkdir, shell file writes, cat and directory
-inspection. This establishes that model outputs are converted into real executed
-commands, rather than just displayed as instructions. Early diagnostic runs also
-exposed the small model's poor exact-newline handling, confused reviewer behavior,
-invalid review JSON and incomplete inspection. Those runs were not marked successful
-by the developer or used to claim a correct exact-content result. The later basic
-file-action test also saw a fresh reviewer repeat the write before reading the file,
-despite its inspection-only role. Review roles are prompted, not an OS-enforced
-read-only sandbox; this checkpoint is therefore not a reliable completion judge. Their progress
-records are retained separately from the user's queue.
-
-The final adapter includes a compact AirLLM role prompt, lower process-local SDK
-context floor without claiming a fictional context capacity, checked token budgets,
-forced initial reviewer tool selection, strict review-field validation, rejection of
-malformed/truncated tool calls, CPU garbage-collection throttling, a bounded CPU weight
-cache, and cancellation when a client disconnects. These changes do not make a weak
-model reliable at every task or make AI review a proof of correctness.
-
-All **30 regression/integration tests passed inside Ubuntu**, using the USB's Python
-3.12 and CPU PyTorch. The test log is `logs/validation-airllm-tests.txt`. Tests include
-native-tool conversion, literal delimiters inside shell arguments, tool-choice and
-schema validation, streaming response framing, real HTTP busy/health behavior,
-disconnected-client cancellation, bounded CPU caching with correct tensor retention,
-queue retry/resume semantics and background-command timeout cleanup.
-Both default and AirLLM `--check` commands passed inside Ubuntu. The actual main menu
-opened submenu 9 and returned/exited correctly. Ctrl+C diagnostic shutdown closed its
-owned model and worker and flushed USB writes.
-
-Before this integration, launcher/configuration/task/prompt files were backed up to
-`/home/charles/Work/CapStone-before-airllm-20261005-153549`. The user's `tasks.txt`,
-`prompt.txt` and default `config.json` were compared byte for byte against that backup
-and remain unchanged. Validation tasks use separate folders under `workspace/` and
-separate state files. The user's task queue was not executed during validation.
-
-
-### Completed real AirLLM task-loop run
-
-`bash launch.sh --backend airllm --query ... --state state/validation-airllm-cache.json`
-created and read `workspace/.validation-airllm-cache/proof.txt` through actual Hermes
-terminal calls. The observed bytes are `b'AirLLM and Hermes executed this task\n'`.
-The task requested a basic sentence write/read, rather than the earlier exact-newline
-case. The review returned correctly typed positive JSON with recorded file-read
-observations. The queue recorded completion on pass 1, the command exited 0, and the
-launcher reported process closure and a USB filesystem flush. The review also repeated
-the write before reading, as disclosed above; this validates lifecycle/tool integration
-and does not establish a reliable inspection-only reviewer with this checkpoint.
-
-Real worker receipt: `logs/sessions/1791240835260686073-work`.
-Real reviewer receipt: `logs/sessions/1791241107545125939-review`.
-Task state: `state/validation-airllm-cache.json`.
-The final cached CPU run generated at about one token per second after its prompt pass.
-The server logged a 7.68 GB cache budget on the 32 GB host. Speed and available-memory
-budgets vary by machine and model.
-
-The real Ubuntu terminal menu also passed: option 9 → 1 started AirLLM and displayed
-the Hermes prompt; `/quit` closed the model/agent and flushed USB writes, returned to
-the AirLLM menu, then Back → 0 exited the main menu with status 0.
-
+remain on the drive. No symlinks exist in the Hermes or model runtime bundles.
 
 ## Follow-up console, small-model and toolkit validation — 2026-10-06
 
-The user's report concerned main menu 1 (regular GGUF/Hermes), not AirLLM. This launcher
+The user's report concerned main menu 1 (regular GGUF/Hermes). This launcher
 uses the actual Hermes SDK with a simple console; the absence of the full Hermes TUI
 was intentional. The SDK's quiet mode could start a raw animation on terminal output.
 The menu also ran its supervisor in the foreground process group, so Ctrl+C could reach
@@ -359,8 +301,7 @@ after roughly 90 seconds of cold CPU prompt processing/generation. Those are obs
 on this host, not speed promises for another Ubuntu computer.
 
 Added hash-verified, revision-pinned SmolLM2-360M-Instruct Q8_0 (386,404,992 bytes) and
-Qwen2.5-0.5B-Instruct Q4_K_M (491,400,032 bytes). Qwen 0.5B Transformers weights are
-also installed for AirLLM. The model source receipts are next to the weight files;
+Qwen2.5-0.5B-Instruct Q4_K_M (491,400,032 bytes). The model source receipts are next to the weight files;
 `small-model-assets.json` records the GGUF pins. Small models are communication/latency
 smoke-test choices, not reliable agents or independent reviewers. Existing larger weights
 were preserved. The user's tasks.txt was not executed or changed.
@@ -436,9 +377,8 @@ this expansion; its earlier actual Ubuntu result remains documented above.
 
 
 Additional actual Ubuntu greeting checks passed through Hermes: SmolLM2 360M GGUF
-answered in 1.94 seconds and Qwen2.5 0.5B AirLLM answered in 15.83 seconds, each followed
-by `/quit` and exit 0 with model shutdown/flush. Startup and first layer splitting are
-excluded from those greeting durations. The receipt is `logs/validation-small-chats.json`.
+answered in 1.94 seconds, followed by `/quit` and exit 0 with model shutdown/flush.
+Startup is excluded from that greeting duration. The receipt is `logs/validation-small-chats.json`.
 The earlier Qwen 0.5B GGUF greeting recorded 3.72 seconds of prompt evaluation plus 0.19
 seconds of generation in the actual model server log.
 
