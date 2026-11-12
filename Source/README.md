@@ -33,7 +33,11 @@ bash setup.sh
 The default setup is online. It prepares the checksum-pinned llama.cpp archive, portable
 Python, pinned Hermes source and hash-verified dependency wheels. Installed GGUF weights
 are preserved; if models are already present, setup does not download model weights.
-With no installed models, it prepares the pinned default model. Python handles downloads,
+With no installed models, it prepares the pinned model in `models/3) medium/`. The
+saved default points to this folder, and setup validation and default startup choose
+the first alphabetically named complete GGUF there (including nested folders).
+Replace that file to change the default without editing configuration. Explicit
+model selections from the menu still override the folder default. Python handles downloads,
 so Snap curl is not required. Dependencies are installed inside this folder, without sudo
 or changing your system Python.
 

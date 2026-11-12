@@ -159,7 +159,8 @@ def startup_cycle(mode, root=ROOT):
             report.write('SELECTION RATIONALE', policy='Highest deterministic score among eligible models; each tried once',
                          candidate_count=len(candidates))
         else:
-            path = resolve(root, config['model']) if mode == 'default' else manual_model(root)
+            from model_selection import selected_model
+            path = selected_model(root, config['model']) if mode == 'default' else manual_model(root)
             if path is None:
                 report.finish('manual selection cancelled')
                 return

@@ -301,7 +301,7 @@ def main():
         prepare_gpu_runtimes(args.offline)
     if not args.runtime_only:
         asset = manifest['model']
-        destination = ROOT / 'models' / asset['file']
+        destination = ROOT / 'models' / '3) medium' / asset['file']
         destination.parent.mkdir(parents=True, exist_ok=True)
         sources = [parent / 'models' / asset['file'] for parent in (ROOT.parent, ROOT.parent.parent)]
         if not reuse_local_model(asset, destination, sources):

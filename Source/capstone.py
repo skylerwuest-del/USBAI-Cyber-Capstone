@@ -15,7 +15,9 @@ def runtime_config(config, backend, model=None):
         raise ValueError('Unsupported model backend: ' + str(backend))
     if model:
         config['model'] = model
-    checkpoint = resolve(ROOT, config['model'])
+    from model_selection import selected_model
+    checkpoint = selected_model(ROOT, config['model'])
+    config['model'] = str(checkpoint)
     from llm_fit import model_profile
     profile = model_profile(checkpoint, ROOT)
     config.update(profile)
