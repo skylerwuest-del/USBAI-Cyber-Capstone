@@ -73,8 +73,9 @@ bash setup.sh --offline
 This uses the cached archives and wheels. Keep `hermes/`, `runtime/`, `models/` and the
 runtime cache under `state/` together when moving the application. `setup.py`,
 `setup_hermes.py` and `prepare.py` are supporting implementation files; you do not need
-to run them individually. `startup.sh` remains a direct-chat shortcut; `launch.sh` is the
-main menu entry. Toolkit management retains its optional preparation path; the
+to run them individually. `setup.sh` is the installation/repair entry point;
+`launch.sh` is the main menu entry. The redundant `startup.sh` shortcut was removed;
+use `bash launch.sh --chat` for direct chat. Toolkit management retains its optional preparation path; the
 unified setup prepares the GGUF/Hermes chat stack.
 
 ## Offline model startup
@@ -154,7 +155,7 @@ not claim an unmeasured GPU memory budget. Performance histories distinguish
 selected runtime/backend and GPU reserve settings. No swap-backed loading is enabled.
 
 Models, archives, dependencies, logs, application caches, GPU shader caches, and
-temporary download/extraction files stay under the USB application directory.
+setup download/extraction files stay under the USB application directory. Application session scratch storage is managed separately as described below.
 The existing portable Python stays on USB; no new host venv is required. No host
 packages or GPU drivers are installed. Explicit user-directed tool commands can
 still edit host files; environment redirection is not a filesystem sandbox.
@@ -355,12 +356,13 @@ For unattended execution, starting the model and task loop together:
 bash launch.sh --run --tasks tasks.txt
 ```
 
-Or select menu option **3**. `startup.sh` is an optional shortcut for interactive Hermes;
-it installs no Ubuntu login hook. To use it for the queue:
+Or select menu option **3**. For direct interactive chat without the menus, use:
 
 ```bash
-bash startup.sh --run --tasks tasks.txt
+bash launch.sh --chat
 ```
+
+The launcher installs no Ubuntu login hook.
 
 `launch.sh` is the normal entry point. `setup.sh` repairs the pinned model/server and
 reinstalls the cached Hermes dependencies. `setup_hermes.py --offline` repairs Hermes
@@ -546,3 +548,66 @@ Upstream references: [Hermes release](https://github.com/NousResearch/hermes-age
 [Qwen model](https://huggingface.co/Qwen/Qwen3.5-9B),
 [GGUF quantization](https://huggingface.co/unsloth/Qwen3.5-9B-GGUF),
 [Ralph loop inspiration](https://github.com/KLIEBHAN/ralph-loop).
+
+
+## Temporary File Management (SOURCE)
+
+Launch this version from its own directory with `bash launch.sh`. Select a model
+using the existing startup menu, then choose **12) Temporary File Management** in
+the application menu. `bash launch.sh --chat` also creates managed scratch
+storage, but enters chat directly without the main menu.
+
+Each application supervisor creates a private mode-0700 `/tmp/hermes_session_*`
+workspace using Python's secure `mkdtemp`. `TMPDIR`, `TMP`, `TEMP`, and Python's
+cached temporary location point there. Model servers and Hermes SDK workers inherit
+the scratch path. A launched application subprocess owns a separate workspace.
+This covers temporary files made through the standard temporary APIs; it does not
+move saved chat/task requests, results, logs, or user-created tool outputs.
+
+The submenu displays the exact session ID/path, ownership validation, file and
+directory counts, byte usage, and inspection errors. It never scans `/tmp`.
+Active-session cleanup is conservatively deferred until shutdown, because tools
+or inference may still need files. Confirm the shutdown-cleanup prompt, then exit
+normally. Automatic cleanup also runs without that confirmation on normal exit,
+unwinding errors, Ctrl+C exit, and handled SIGTERM/SIGHUP. Ctrl+C in menus retains
+the existing return-to-menu behavior. Workers and model servers stop through the
+existing shutdown handlers before the supervisor cleans its workspace. Cleanup
+reports whether removal succeeded; missing directories are handled gracefully.
+
+Minimal verification records live on the USB in `state/temporary-sessions/`.
+Recovery reviews only those recorded paths, checking the host boot, current UID,
+private directory permissions, device/inode, and matching random-token marker.
+A directory lock protects active sessions without relying on PID identity. Owned
+model/worker subprocesses inherit the lock, protecting their scratch storage if
+the supervisor crashes. Recovery rechecks the lock and identity immediately before
+confirmed deletion. Symlink substitutions are rejected; descriptor-based deletion
+does not traverse symlinks inside the workspace. Invalid, inaccessible, active,
+or unverifiable records are reported and preserved. Another host/boot's records
+are deliberately preserved for manual investigation; moving the USB does not
+establish ownership on the new host. SIGKILL and power loss cannot run shutdown
+cleanup. Never delete directories merely because their names resemble HERMES.
+
+**Restart requires no setup:** cleanup targets only the verified session directory.
+`models/`, `runtime/`, `hermes/` (Python and installed packages), `toolkit/`,
+configuration, USB caches, persistent sessions, logs, and workspace outputs remain
+on the USB. `setup.sh` delegates preparation to `prepare.py`; setup installs these
+persistent assets, not session scratch dependencies. Cleanup invokes neither setup
+nor package/model downloads. It uses standard-library filesystem operations and
+needs no sudo. If workspace creation fails (including read-only USB metadata),
+startup stops with an error rather than enabling untracked cleanup.
+
+Limitations: third-party engines, GPU drivers, and shell tools may ignore temporary
+environment variables or explicitly write elsewhere. Existing USB runtime caches
+remain persistent; legacy `state/tmp` contents are not automatically removed.
+Detached processes outside the owned worker/server lifecycle are not guaranteed
+to release resources. HERMES does not promise zero host artifacts. Failed cleanup
+is reported without broadening its deletion scope.
+
+Offline validation: `python3 -B -m unittest discover -s tests-hermes`.
+For a real-model check on a prepared USB: run `bash launch.sh`, select the existing
+default AI, inspect menu 12, return and start chat with option 1, ask a short
+question, exit chat, request shutdown cleanup in menu 12, and exit both menus.
+Confirm each reported workspace was removed. Run `bash launch.sh` again, select
+the same model, and ask another question without running setup. To check crash
+recovery, interrupt a disposable session with SIGKILL, ensure its owned workers
+have exited, then review its record using menu 12 option 4 on the same host boot.

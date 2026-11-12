@@ -143,7 +143,9 @@ if __name__ == '__main__':
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, interrupted)
     try:
-        raise SystemExit(main())
+        from temporary_workspace import session
+        with session(ROOT):
+            raise SystemExit(main())
     except (KeyboardInterrupt, EOFError):
         print('\nStopped. Progress saved; owned processes closed.', flush=True)
         raise SystemExit(130)

@@ -34,9 +34,16 @@ def run(*args, active_model=None):
         args = (*args, '--model', str(active_model))
         if '--chat' in args:
             args = (*args, '--fit-session')
-    process = subprocess.Popen([sys.executable, '-s', '-B', str(ROOT / 'capstone.py'), *args], cwd=ROOT, start_new_session=True)
+    from temporary_workspace import inherited_lock, track_process
+    process = subprocess.Popen([sys.executable, '-s', '-B', str(ROOT / 'capstone.py'), *args], cwd=ROOT, start_new_session=True, pass_fds=inherited_lock())
+    track_process(process)
     try:
         return process.wait()
+    except SystemExit:
+        from usb_core import shutdown_signals, stop_process
+        with shutdown_signals():
+            stop_process(process)
+        raise
     except KeyboardInterrupt:
         # Give the supervisor time to terminate its separately grouped model and
         # agents. subprocess.call's short interrupt grace can orphan that server.
@@ -70,6 +77,7 @@ CapStone — local Hermes, terminal only
 8) Serve the local model only
 10) USB toolkit (tools, local self-test, offline repair)
 11) Test installed GGUF models (optional performance benchmark)
+12) Temporary File Management
 0) Exit''')
         try:
             choice = input('Choose: ').strip()
@@ -95,6 +103,9 @@ CapStone — local Hermes, terminal only
                 edit('prompt.txt')
             elif choice == '8':
                 run('--serve-only', active_model=active_model)
+            elif choice == '12':
+                from temporary_workspace import menu as temporary_menu
+                temporary_menu()
             elif choice == '11':
                 from fit_benchmark import run_benchmarks
                 run_benchmarks()
@@ -110,4 +121,10 @@ CapStone — local Hermes, terminal only
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    from temporary_workspace import session
+    try:
+        with session(ROOT):
+            raise SystemExit(main())
+    except (OSError, ValueError, RuntimeError) as exc:
+        print('HERMES startup unavailable: ' + str(exc), flush=True)
+        raise SystemExit(1)

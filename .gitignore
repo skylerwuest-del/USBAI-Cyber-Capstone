@@ -276,3 +276,6 @@ Source/state/llm-fit-performance.lock
 /Demo1_Automated_Password_Cracking/**/*.tar
 /Demo1_Automated_Password_Cracking/**/*.tar.gz
 /Demo1_Automated_Password_Cracking/**/*.zip
+
+# Local prototype bundle; keep installed payloads out of Git
+/Prototype1_demo1/

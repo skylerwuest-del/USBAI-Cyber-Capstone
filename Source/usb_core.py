@@ -228,10 +228,12 @@ class Server:
         if selection:
             print('Inference: ' + selection['backend'] + '; CPU threads: ' + str(threads), flush=True)
         try:
-            self.process = subprocess.Popen(args, cwd=ROOT, env=env, stdin=subprocess.DEVNULL, stdout=self.log, stderr=self.log, start_new_session=True)
+            from temporary_workspace import inherited_lock, track_process
+            self.process = subprocess.Popen(args, pass_fds=inherited_lock(), cwd=ROOT, env=env, stdin=subprocess.DEVNULL, stdout=self.log, stderr=self.log, start_new_session=True)
         except BaseException:
             self.close()
             raise
+        track_process(self.process)
         if not cfg.get('_fit_single_attempt'):
             print('Starting USB llama.cpp model server...', flush=True)
         end = time.monotonic() + cfg['startup_timeout']

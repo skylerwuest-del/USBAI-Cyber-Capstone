@@ -13,7 +13,8 @@ menu/CLI compatibility coverage, **all 135 remaining tests passed** using host P
 selection, model download/selection, setup, selected-model propagation, menu option 3,
 queue/reviewer/durable-job semantics, console progress and process cleanup.
 
-Shell syntax checks passed for `launch.sh`, `setup.sh` and `startup.sh`. Actual launcher
+Shell syntax checks passed for `launch.sh` and `setup.sh`. The former
+`startup.sh` direct-chat shortcut has been removed; use `bash launch.sh --chat`. Actual launcher
 `--help`, `--status` and startup-menu exit smoke checks passed. An active-source scan
 found no remaining imports, filenames or documentation references to the retired backend.
 Tests ran in an external working copy, keeping generated test state outside `Source/`.

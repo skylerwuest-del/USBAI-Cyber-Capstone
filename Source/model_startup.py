@@ -215,4 +215,10 @@ if __name__ == '__main__':
     def interrupted(signum, frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, interrupted)
-    raise SystemExit(main())
+    from temporary_workspace import session
+    try:
+        with session(ROOT):
+            raise SystemExit(main())
+    except (OSError, ValueError, RuntimeError) as exc:
+        print('HERMES startup unavailable: ' + str(exc), flush=True)
+        raise SystemExit(1)

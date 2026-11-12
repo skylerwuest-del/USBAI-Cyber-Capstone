@@ -29,6 +29,18 @@ def usb_environment(root, source=None):
         else:
             path.mkdir(parents=True, exist_ok=True)
         env[key] = str(path)
+    # Inference servers and SDK workers must retain their supervisor's scratch path.
+    scratch = env.get('HERMES_SESSION_TMP')
+    if scratch:
+        path = Path(scratch)
+        info = path.lstat()
+        import stat
+        if (path.parent != Path('/tmp').resolve() or not stat.S_ISDIR(info.st_mode)
+                or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700
+                or not (path / '.hermes-session.json').is_file()):
+            raise RuntimeError('Managed temporary workspace is invalid; restart HERMES')
+        for key in ('TMPDIR', 'TMP', 'TEMP'):
+            env[key] = str(path)
     env.update(PYTHONNOUSERSITE='1', PYTHONDONTWRITEBYTECODE='1',
                HF_HUB_DISABLE_TELEMETRY='1', DO_NOT_TRACK='1',
                PIP_DISABLE_PIP_VERSION_CHECK='1', PIP_CONFIG_FILE=os.devnull)

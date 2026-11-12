@@ -213,10 +213,12 @@ class Sessions:
         if custom.is_file() and not review:
             request['system'] += '\nUSER INSTRUCTIONS:\n' + custom.read_text()
         atomic_json(folder / 'request.json', request)
+        from temporary_workspace import inherited_lock, track_process
         process = subprocess.Popen([str(ROOT / 'hermes' / 'python' / 'bin' / 'python3.12'),
                                     '-s', '-B', str(ROOT / 'agent_worker.py'),
                                     str(folder / 'request.json'), str(folder / 'result.json')],
-                                   cwd=ROOT, start_new_session=True)
+                                   cwd=ROOT, start_new_session=True, pass_fds=inherited_lock())
+        track_process(process)
         try:
             code = process.wait(timeout=session_wait_timeout(self.config, interactive))
         except subprocess.TimeoutExpired:

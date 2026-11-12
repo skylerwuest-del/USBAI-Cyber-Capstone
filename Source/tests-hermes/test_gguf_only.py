@@ -18,7 +18,7 @@ class GGUFOnlyLauncherTests(unittest.TestCase):
         with patch('builtins.input', return_value='0'), contextlib.redirect_stdout(output):
             self.assertEqual(menu.main(), 0)
         choices = re.findall(r'^(\d+)\)', output.getvalue(), re.MULTILINE)
-        self.assertEqual(choices, ['1', '2', '3', '4', '5', '6', '7', '8', '10', '11', '0'])
+        self.assertEqual(choices, ['1', '2', '3', '4', '5', '6', '7', '8', '10', '11', '12', '0'])
 
     def test_option_three_still_runs_selected_model_queue_and_exits(self):
         with patch('builtins.input', return_value='3'), patch.object(menu, 'run', return_value=0) as run, \
