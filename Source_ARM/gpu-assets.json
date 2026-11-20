@@ -1,0 +1,24 @@
+{
+  "vulkan": [
+    {
+      "file": "llama-b11146-bin-ubuntu-vulkan-arm64.tar.gz",
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11146/llama-b11146-bin-ubuntu-vulkan-arm64.tar.gz",
+      "size": 24410274,
+      "sha256": "5dcebe3ecbcb43a1ed85e3284453f9edf54dcca833e1cb1f54b4022b753c1da5"
+    }
+  ],
+  "cuda": [
+    {
+      "file": "llama-b11146-bin-ubuntu-cuda-13.4-arm64.tar.gz",
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11146/llama-b11146-bin-ubuntu-cuda-13.4-arm64.tar.gz",
+      "size": 145033340,
+      "sha256": "4e00496ab6cdee9c00afb11de3cb9d10f9da7e17147d8ed14ca3af05209b400f"
+    },
+    {
+      "file": "cudart-llama-b11146-bin-ubuntu-cuda-13.4-arm64.tar.gz",
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11146/cudart-llama-b11146-bin-ubuntu-cuda-13.4-arm64.tar.gz",
+      "size": 552520827,
+      "sha256": "7f46057efcba6338c58ed9f91c06f268c290f3a228fdbdd4bea229dd60b0e094"
+    }
+  ]
+}

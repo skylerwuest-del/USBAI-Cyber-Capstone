@@ -1,0 +1,79 @@
+"""Owned, line-based progress for a terminal SDK session. No animation threads."""
+import json
+from pathlib import Path
+import threading
+import time
+import urllib.request
+
+
+class StopRequested(BaseException):
+    """A process stop must escape the SDK's ordinary retry/interrupt handling."""
+
+
+class ConsoleProgress:
+    def __init__(self, base_url, backend, root, interval=5, emit=None):
+        self.base = base_url.removesuffix('/v1')
+        self.backend, self.root, self.interval = backend, Path(root), interval
+        self.emit = emit or (lambda value: print(value, flush=True))
+        self.done, self.lock = threading.Event(), threading.Lock()
+        self.waiting, self.started, self.thread = False, 0, None
+        self.client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+    def thinking(self, message):
+        with self.lock:
+            if self.done.is_set():
+                return
+            if message and not self.waiting:
+                self.started = time.monotonic()
+                self.emit('[model] Processing on CPU; Ctrl+C stops the session.')
+            self.waiting = bool(message)
+
+    def detail(self):
+        with self.client.open(self.base + '/slots', timeout=1) as response:
+            slots = json.load(response)
+        for slot in slots:
+            if not isinstance(slot, dict):
+                continue
+            if slot.get('is_processing'):
+                next_token = slot.get('next_token') or {}
+                if isinstance(next_token, list):
+                    next_token = next_token[0] if next_token and isinstance(next_token[0], dict) else {}
+                decoded = next_token.get('n_decoded', 0) if isinstance(next_token, dict) else 0
+                if decoded:
+                    return 'generating response; ' + str(decoded) + ' tokens generated'
+                processed = slot.get('n_prompt_tokens_processed')
+                if processed:
+                    return str(processed) + ' prompt tokens processed'
+                return 'evaluating first prompt batch; counter updates when the batch completes'
+        return ''
+
+    def _run(self):
+        while not self.done.wait(self.interval):
+            with self.lock:
+                if not self.waiting:
+                    continue
+                started = self.started
+                if time.monotonic() - started < self.interval:
+                    continue
+            try:
+                detail = self.detail()
+            except (OSError, ValueError, KeyError, TypeError):
+                detail = ''
+            with self.lock:
+                # A late poll must not print after cancellation or the next turn.
+                if not self.done.is_set() and self.waiting and self.started == started:
+                    elapsed = int(time.monotonic() - started)
+                    self.emit('[model] ' + str(elapsed) + 's elapsed' + ('; ' + detail if detail else ''))
+
+    def __enter__(self):
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+        return self
+
+    def close(self):
+        self.done.set()
+        if self.thread is not None:
+            self.thread.join(timeout=2)
+
+    def __exit__(self, *args):
+        self.close()
